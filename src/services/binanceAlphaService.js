@@ -5,6 +5,36 @@ const TOKEN_LIST_PATH = "/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha
 const TICKER_PATH = "/bapi/defi/v1/public/alpha-trade/ticker";
 const AGG_TRADES_PATH = "/bapi/defi/v1/public/alpha-trade/agg-trades";
 const KLINES_PATH = "/bapi/defi/v1/public/alpha-trade/klines";
+const SUPPORTED_WINDOWS = {
+  "15m": {
+    key: "15m",
+    klineInterval: "1m",
+    currentBars: 15,
+    baselineBars: 60,
+    fetchBars: 140,
+  },
+  "1h": {
+    key: "1h",
+    klineInterval: "5m",
+    currentBars: 12,
+    baselineBars: 48,
+    fetchBars: 140,
+  },
+  "4h": {
+    key: "4h",
+    klineInterval: "15m",
+    currentBars: 16,
+    baselineBars: 64,
+    fetchBars: 160,
+  },
+  "24h": {
+    key: "24h",
+    klineInterval: "1h",
+    currentBars: 24,
+    baselineBars: 96,
+    fetchBars: 180,
+  },
+};
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -21,6 +51,24 @@ function unwrapData(payload) {
   }
 
   return payload;
+}
+
+function resolveWindowConfig(windowKey) {
+  const key = String(windowKey || "").trim();
+  if (SUPPORTED_WINDOWS[key]) {
+    return SUPPORTED_WINDOWS[key];
+  }
+
+  const legacy = {
+    "1m": "15m",
+    "5m": "1h",
+    "15m": "15m",
+    "1h": "1h",
+    "4h": "4h",
+    "1d": "24h",
+  };
+  const normalized = legacy[key] || "1h";
+  return SUPPORTED_WINDOWS[normalized];
 }
 
 function extractArray(data) {
@@ -66,6 +114,20 @@ function toTradeSymbol(tokenLike) {
   }
 
   return symbol;
+}
+
+function buildBinanceKlineUrl({ alphaId, tradeSymbol, symbol }) {
+  const normalizedAlphaId = String(alphaId || "").trim();
+  if (normalizedAlphaId) {
+    return `https://www.binance.com/zh-CN/alpha/${encodeURIComponent(normalizedAlphaId)}`;
+  }
+
+  const pair = String(tradeSymbol || symbol || "").trim();
+  if (!pair) {
+    return "https://www.binance.com/zh-CN/markets";
+  }
+
+  return `https://www.binance.com/zh-CN/trade/${encodeURIComponent(pair)}?type=spot`;
 }
 
 function byNumberDesc(selector) {
@@ -169,8 +231,53 @@ export function deriveVolumeSnapshot(
   };
 }
 
+function getClosedKlines(klines, nowMs = Date.now()) {
+  const rows = Array.isArray(klines) ? klines : [];
+  const closed = rows.filter(
+    (row) =>
+      Number.isFinite(toNumber(row?.openTime, NaN)) &&
+      Number.isFinite(toNumber(row?.closeTime, NaN)) &&
+      toNumber(row.closeTime) <= nowMs,
+  );
+
+  if (closed.length >= 2) {
+    return closed;
+  }
+
+  return rows;
+}
+
+function derivePriceChangePct(klines, currentBars, nowMs = Date.now()) {
+  const source = getClosedKlines(klines, nowMs);
+  if (!source.length) {
+    return 0;
+  }
+
+  const size = Math.max(1, Math.min(400, toNumber(currentBars, 1)));
+  const currentCandles = source.slice(-size);
+  if (!currentCandles.length) {
+    return 0;
+  }
+
+  const first = currentCandles[0];
+  const last = currentCandles[currentCandles.length - 1];
+  const startPrice = toNumber(first.open, toNumber(first.close));
+  const endPrice = toNumber(last.close, toNumber(last.open));
+
+  return calculatePriceMovePct(startPrice, endPrice);
+}
+
+function deriveWindowTradeCount(klines, currentBars, nowMs = Date.now()) {
+  const source = getClosedKlines(klines, nowMs);
+  const size = Math.max(1, Math.min(400, toNumber(currentBars, 1)));
+
+  return source
+    .slice(-size)
+    .reduce((sum, row) => sum + Math.max(0, toNumber(row?.tradeCount, 0)), 0);
+}
+
 function selectScannableSymbols(tokens, limit) {
-  const normalizedLimit = Math.max(1, Math.min(100, toNumber(limit, 20)));
+  const normalizedLimit = Math.max(1, Math.min(2000, toNumber(limit, 100)));
   const seen = new Set();
   const allTokens = [];
 
@@ -192,6 +299,16 @@ function selectScannableSymbols(tokens, limit) {
       name: String(token.name || token.tokenName || displaySymbol || tradeSymbol),
       tokenId: String(token.tokenId || token.id || displaySymbol || tradeSymbol),
       alphaId: String(token.alphaId || ""),
+      price: toNumber(token.price, NaN),
+      percentChange24h: toNumber(token.percentChange24h, NaN),
+      volume24h: toNumber(token.volume24h, NaN),
+      count24h: toNumber(token.count24h, NaN),
+      marketCap: toNumber(token.marketCap, NaN),
+      klineUrl: buildBinanceKlineUrl({
+        alphaId: token.alphaId,
+        tradeSymbol,
+        symbol: displaySymbol || tradeSymbol,
+      }),
     });
   }
 
@@ -230,6 +347,16 @@ function normalizeTokenList(data) {
       name: String(row.name || row.tokenName || symbol),
       tokenId: String(row.tokenId || row.id || symbol),
       alphaId: String(row.alphaId || ""),
+      price: toNumber(row.price, NaN),
+      percentChange24h: toNumber(row.percentChange24h, NaN),
+      volume24h: toNumber(row.volume24h, NaN),
+      count24h: toNumber(row.count24h, NaN),
+      marketCap: toNumber(row.marketCap, NaN),
+      klineUrl: buildBinanceKlineUrl({
+        alphaId: row.alphaId,
+        tradeSymbol,
+        symbol,
+      }),
     });
   }
 
@@ -244,6 +371,7 @@ function normalizeTicker(data) {
       openPrice: 0,
       volume: 0,
       quoteVolume: 0,
+      tradeCount24h: 0,
       priceChangePct: 0,
     };
   }
@@ -253,6 +381,7 @@ function normalizeTicker(data) {
   const openPrice = toNumber(data.openPrice ?? data.open ?? data.o, lastPrice);
   const volume = toNumber(data.volume ?? data.v ?? data.baseVolume ?? data.totalVolume);
   const quoteVolume = toNumber(data.quoteVolume ?? data.qv ?? data.amount ?? data.turnover);
+  const tradeCount24h = toNumber(data.count ?? data.tradeCount ?? data.n);
 
   const providedPct = data.priceChangePercent ?? data.p ?? data.changePercent;
   const priceChangePct =
@@ -264,6 +393,7 @@ function normalizeTicker(data) {
     openPrice: round(openPrice, 8),
     volume: round(volume, 8),
     quoteVolume: round(quoteVolume, 8),
+    tradeCount24h,
     priceChangePct,
   };
 }
@@ -283,6 +413,7 @@ function normalizeKlines(data) {
           volume: toNumber(row[5]),
           closeTime: toNumber(row[6]),
           quoteVolume: toNumber(row[7]),
+          tradeCount: toNumber(row[8]),
         };
       }
 
@@ -299,6 +430,7 @@ function normalizeKlines(data) {
         volume: toNumber(row.volume ?? row.v),
         closeTime: toNumber(row.closeTime ?? row.T),
         quoteVolume: toNumber(row.quoteVolume ?? row.qv),
+        tradeCount: toNumber(row.tradeCount ?? row.n),
       };
     })
     .filter(Boolean)
@@ -377,6 +509,9 @@ function buildDemoOverview(symbol, interval) {
 
   return {
     symbol,
+    tradeSymbol: symbol,
+    displaySymbol: symbol,
+    tokenName: symbol,
     interval,
     ticker: {
       symbol,
@@ -398,6 +533,7 @@ function buildDemoOverview(symbol, interval) {
     signal,
     klines,
     source: "demo",
+    klineUrl: buildBinanceKlineUrl({ tradeSymbol: symbol, symbol }),
     updatedAt: new Date().toISOString(),
   };
 }
@@ -462,6 +598,12 @@ export class BinanceAlphaService {
           alphaId: "ALPHA_798",
           name: "Nebula3",
           tokenId: "alpha-798",
+          price: 0.0072,
+          percentChange24h: -35.41,
+          volume24h: 27675749.98,
+          count24h: 54032,
+          marketCap: 2657077.69,
+          klineUrl: "https://www.binance.com/zh-CN/alpha/ALPHA_798",
         },
         {
           symbol: "URO",
@@ -469,6 +611,12 @@ export class BinanceAlphaService {
           alphaId: "ALPHA_175",
           name: "URO",
           tokenId: "alpha-175",
+          price: 0.022,
+          percentChange24h: 18.65,
+          volume24h: 17640000,
+          count24h: 32020,
+          marketCap: 23210000,
+          klineUrl: "https://www.binance.com/zh-CN/alpha/ALPHA_175",
         },
         {
           symbol: "BETA",
@@ -476,6 +624,12 @@ export class BinanceAlphaService {
           alphaId: "ALPHA_402",
           name: "BETA",
           tokenId: "alpha-402",
+          price: 0.18,
+          percentChange24h: 3.72,
+          volume24h: 9280000,
+          count24h: 14022,
+          marketCap: 67090000,
+          klineUrl: "https://www.binance.com/zh-CN/alpha/ALPHA_402",
         },
         {
           symbol: "GAMMA",
@@ -483,6 +637,12 @@ export class BinanceAlphaService {
           alphaId: "ALPHA_008",
           name: "GAMMA",
           tokenId: "alpha-008",
+          price: 0.55,
+          percentChange24h: -7.46,
+          volume24h: 728470,
+          count24h: 2780,
+          marketCap: 21850000,
+          klineUrl: "https://www.binance.com/zh-CN/alpha/ALPHA_008",
         },
       ];
     }
@@ -522,7 +682,61 @@ export class BinanceAlphaService {
     return normalizeAggTrades(unwrapData(payload));
   }
 
-  async fetchOverview(symbol, interval = "1m") {
+  async fetchScanSnapshot(symbol, interval = "1h") {
+    if (this.demoMode) {
+      return buildDemoOverview(symbol, interval);
+    }
+
+    const windowConfig = resolveWindowConfig(interval);
+
+    const [ticker, klines] = await Promise.all([
+      this.fetchTicker(symbol),
+      this.fetchKlines(symbol, windowConfig.klineInterval, windowConfig.fetchBars),
+    ]);
+
+    const volumeSnapshot = deriveVolumeSnapshot(klines, {
+      currentWindow: windowConfig.currentBars,
+      baselineWindow: windowConfig.baselineBars,
+    });
+
+    const currentVolume = volumeSnapshot.currentVolume;
+    const baselineVolumes = volumeSnapshot.baselineVolumes;
+    const baselineVolumeAvg = volumeSnapshot.baselineVolumeAvg;
+    const priceFromWindow = derivePriceChangePct(klines, windowConfig.currentBars);
+    const priceChangePct =
+      Math.abs(priceFromWindow) > 0
+        ? priceFromWindow
+        : windowConfig.key === "24h"
+          ? ticker.priceChangePct
+          : 0;
+    const volumeSpikePct = calculateVolumeSpikePct(currentVolume, baselineVolumes);
+    const tradeCount = deriveWindowTradeCount(klines, windowConfig.currentBars) || ticker.tradeCount24h || 0;
+
+    const signal = buildAnomalySignal({
+      priceChangePct,
+      volumeSpikePct,
+      tradeCount,
+    });
+
+    return {
+      symbol,
+      interval: windowConfig.key,
+      ticker,
+      market: {
+        priceChangePct: round(priceChangePct, 2),
+        volumeSpikePct: round(volumeSpikePct, 2),
+        tradeCount: round(tradeCount, 0),
+        currentVolume: round(currentVolume, 8),
+        baselineVolumeAvg: round(baselineVolumeAvg, 8),
+      },
+      signal,
+      klines: klines.slice(-20),
+      source: "binance",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async fetchOverview(symbol, interval = "1h") {
     const key = `${symbol}:${interval}`;
     const cached = this.overviewCache.get(key);
     if (cached && Date.now() < cached.expiresAt) {
@@ -538,47 +752,31 @@ export class BinanceAlphaService {
       return demo;
     }
 
-    const [ticker, klines, aggTrades] = await Promise.all([
-      this.fetchTicker(symbol),
-      this.fetchKlines(symbol, interval, 40),
-      this.fetchAggTrades(symbol, 250),
-    ]);
+    const baseSnapshot = await this.fetchScanSnapshot(symbol, interval);
+    let tradeCount = baseSnapshot.market.tradeCount;
 
-    const volumeSnapshot = deriveVolumeSnapshot(klines, {
-      currentWindow: this.volumeCurrentWindow,
-      baselineWindow: this.volumeBaselineWindow,
-    });
-
-    const currentVolume = volumeSnapshot.currentVolume;
-    const baselineVolumes = volumeSnapshot.baselineVolumes;
-    const baselineVolumeAvg = volumeSnapshot.baselineVolumeAvg;
-
-    const priceChangePct =
-      ticker.priceChangePct || calculatePriceMovePct(ticker.openPrice, ticker.lastPrice);
-    const volumeSpikePct = calculateVolumeSpikePct(currentVolume, baselineVolumes);
-    const tradeCount = aggTrades.length;
+    try {
+      const aggTrades = await this.fetchAggTrades(symbol, 250);
+      if (aggTrades.length > 0) {
+        tradeCount = aggTrades.length;
+      }
+    } catch (_error) {
+      // Keep snapshot trade count if agg-trades request fails.
+    }
 
     const signal = buildAnomalySignal({
-      priceChangePct,
-      volumeSpikePct,
+      priceChangePct: baseSnapshot.market.priceChangePct,
+      volumeSpikePct: baseSnapshot.market.volumeSpikePct,
       tradeCount,
     });
 
     const overview = {
-      symbol,
-      interval,
-      ticker,
+      ...baseSnapshot,
       market: {
-        priceChangePct,
-        volumeSpikePct,
+        ...baseSnapshot.market,
         tradeCount,
-        currentVolume: round(currentVolume, 8),
-        baselineVolumeAvg: round(baselineVolumeAvg, 8),
       },
       signal,
-      klines: klines.slice(-20),
-      source: "binance",
-      updatedAt: new Date().toISOString(),
     };
 
     this.overviewCache.set(key, {
@@ -590,7 +788,7 @@ export class BinanceAlphaService {
   }
 
   async scanSymbols({
-    interval = "1m",
+    interval = "1h",
     limit = this.scanSymbolLimit,
   } = {}) {
     const tokens = await this.fetchTokenList();
@@ -602,10 +800,10 @@ export class BinanceAlphaService {
       selectedTokens.map((token) => [token.tradeSymbol, token]),
     );
 
-    const scanned = await mapWithConcurrency(symbols, 4, async (symbol) => {
+    const scanned = await mapWithConcurrency(symbols, 8, async (symbol) => {
       const tokenMeta = tokenByTradeSymbol.get(symbol);
       try {
-        const overview = await this.fetchOverview(symbol, interval);
+        const overview = await this.fetchScanSnapshot(symbol, interval);
         return { ok: true, symbol, tokenMeta, overview };
       } catch (error) {
         return {
@@ -627,6 +825,16 @@ export class BinanceAlphaService {
           item.tokenMeta?.name || item.tokenMeta?.symbol || item.overview.symbol || item.symbol,
         alphaId: item.tokenMeta?.alphaId || "",
         tokenId: item.tokenMeta?.tokenId || "",
+        percentChange24h: item.tokenMeta?.percentChange24h,
+        volume24h: item.tokenMeta?.volume24h,
+        marketCap: item.tokenMeta?.marketCap,
+        klineUrl:
+          item.tokenMeta?.klineUrl ||
+          buildBinanceKlineUrl({
+            alphaId: item.tokenMeta?.alphaId,
+            tradeSymbol: item.tokenMeta?.tradeSymbol || item.overview.symbol || item.symbol,
+            symbol: item.tokenMeta?.symbol || item.overview.symbol || item.symbol,
+          }),
       }))
       .sort((a, b) => b.signal.score - a.signal.score);
 

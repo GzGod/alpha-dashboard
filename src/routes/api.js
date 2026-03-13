@@ -22,7 +22,7 @@ export function createApiRouter(alphaService) {
 
   router.get("/tokens", async (req, res) => {
     try {
-      const limit = parsePositiveInt(req.query.limit, 100);
+      const limit = parsePositiveInt(req.query.limit, 5000);
       const tokens = await alphaService.fetchTokenList();
       res.json({
         count: Math.min(tokens.length, limit),
@@ -38,7 +38,7 @@ export function createApiRouter(alphaService) {
 
   router.get("/overview", async (req, res) => {
     const symbol = String(req.query.symbol || "").trim();
-    const interval = String(req.query.interval || "1m").trim();
+    const interval = String(req.query.interval || "1h").trim();
 
     if (!symbol) {
       res.status(400).json({
@@ -59,8 +59,8 @@ export function createApiRouter(alphaService) {
   });
 
   router.get("/scan", async (req, res) => {
-    const interval = String(req.query.interval || "1m").trim();
-    const limit = parsePositiveInt(req.query.limit, 20);
+    const interval = String(req.query.interval || "1h").trim();
+    const limit = parsePositiveInt(req.query.limit, alphaService.scanSymbolLimit || 100);
 
     try {
       const result = await alphaService.scanSymbols({ interval, limit });

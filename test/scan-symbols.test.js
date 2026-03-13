@@ -9,12 +9,15 @@ function createService() {
     demoMode: false,
   });
 
-  service.fetchOverview = async (symbol, interval) => ({
+  const snapshotStub = async (symbol, interval) => ({
     symbol,
     interval,
+    ticker: { quoteVolume: 100, volume: 100 },
     signal: { score: 1, level: "low", reasons: [] },
     market: { priceChangePct: 0, volumeSpikePct: 0, tradeCount: 0 },
   });
+  service.fetchOverview = snapshotStub;
+  service.fetchScanSnapshot = snapshotStub;
 
   return service;
 }
@@ -60,11 +63,12 @@ test("scanSymbols should use alphaId + USDT as trading symbol when provided", as
       alphaId: "ALPHA_798",
     },
   ];
-  service.fetchOverview = async (symbol, interval) => {
+  service.fetchScanSnapshot = async (symbol, interval) => {
     scannedSymbols.push(symbol);
     return {
       symbol,
       interval,
+      ticker: { quoteVolume: 100, volume: 100 },
       signal: { score: 1, level: "low", reasons: [] },
       market: { priceChangePct: 0, volumeSpikePct: 0, tradeCount: 0 },
     };

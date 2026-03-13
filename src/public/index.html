@@ -46,15 +46,15 @@
         <label>
           周期
           <select id="intervalSelect">
-            <option value="1m">1m</option>
-            <option value="5m">5m</option>
             <option value="15m">15m</option>
             <option value="1h">1h</option>
+            <option value="4h">4h</option>
+            <option value="24h">24h</option>
           </select>
         </label>
         <label>
-          扫描数量
-          <input id="scanLimitInput" type="number" min="5" max="100" value="100" />
+          榜单扫描数量
+          <input id="scanLimitInput" type="number" min="5" max="2000" value="100" />
         </label>
         <button id="scanBtn">刷新扫描</button>
         <button id="loadBtn" class="secondary">加载代币详情</button>
