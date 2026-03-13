@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Alpha Radar | Railway MVP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="backdrop"></div>
+    <main class="page">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">BINANCE ALPHA WATCH</p>
+          <h1>Alpha 异动雷达看板</h1>
+          <p class="subtext">
+            实时扫描成交量异动、价格偏移与成交笔数爆发。后端可直接部署 Railway。
+          </p>
+        </div>
+        <div class="chip-group">
+          <span id="modeChip" class="chip">加载中</span>
+          <span id="timeChip" class="chip">--</span>
+        </div>
+      </header>
+
+      <section class="panel controls">
+        <label>
+          Symbol
+          <input id="symbolInput" type="text" placeholder="例如 ALPHA_175USDT" />
+        </label>
+        <label>
+          Interval
+          <select id="intervalSelect">
+            <option value="1m">1m</option>
+            <option value="5m">5m</option>
+            <option value="15m">15m</option>
+            <option value="1h">1h</option>
+          </select>
+        </label>
+        <label>
+          Scan 数量
+          <input id="scanLimitInput" type="number" min="5" max="100" value="20" />
+        </label>
+        <button id="scanBtn">刷新扫描</button>
+        <button id="loadBtn" class="secondary">加载单币详情</button>
+      </section>
+
+      <section class="stats-grid">
+        <article class="panel stat">
+          <p>价格偏移</p>
+          <h2 id="priceMoveStat">--%</h2>
+        </article>
+        <article class="panel stat">
+          <p>成交量异动</p>
+          <h2 id="volumeSpikeStat">--%</h2>
+        </article>
+        <article class="panel stat">
+          <p>近段成交笔数</p>
+          <h2 id="tradeCountStat">--</h2>
+        </article>
+        <article class="panel stat">
+          <p>异动评分</p>
+          <h2 id="scoreStat">--</h2>
+          <span id="levelTag" class="level level-low">LOW</span>
+        </article>
+      </section>
+
+      <section class="content-grid">
+        <article class="panel">
+          <div class="panel-title-row">
+            <h3>Top 异动榜</h3>
+            <span id="scanMeta" class="muted">--</span>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Symbol</th>
+                  <th>Score</th>
+                  <th>价格%</th>
+                  <th>量能%</th>
+                  <th>级别</th>
+                </tr>
+              </thead>
+              <tbody id="scanTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-title-row">
+            <h3>近 20 根 K 线成交量</h3>
+            <span id="symbolMeta" class="muted">--</span>
+          </div>
+          <div id="volumeBars" class="bars"></div>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
