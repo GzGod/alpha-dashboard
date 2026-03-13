@@ -21,6 +21,10 @@ const els = {
   losersList: document.querySelector("#losersList"),
   anomalyList: document.querySelector("#anomalyList"),
   volumeList: document.querySelector("#volumeList"),
+  gainersHint: document.querySelector("#gainersHint"),
+  losersHint: document.querySelector("#losersHint"),
+  anomalyHint: document.querySelector("#anomalyHint"),
+  volumeHint: document.querySelector("#volumeHint"),
   marketTableBody: document.querySelector("#marketTableBody"),
   topNavLinks: Array.from(document.querySelectorAll(".top-nav a[data-section]")),
   scanModal: document.querySelector("#scanModal"),
@@ -423,6 +427,22 @@ function renderBoards(rankings) {
   renderRankList(els.volumeList, rankings?.volume || [], "volume");
 }
 
+function updateBoardHints(interval) {
+  const key = String(interval || "").trim() || "1h";
+  if (els.gainersHint) {
+    els.gainersHint.textContent = `Top movers · ${key}`;
+  }
+  if (els.losersHint) {
+    els.losersHint.textContent = `Top losers · ${key}`;
+  }
+  if (els.anomalyHint) {
+    els.anomalyHint.textContent = `By signal score · ${key}`;
+  }
+  if (els.volumeHint) {
+    els.volumeHint.textContent = `By quote volume · ${key}`;
+  }
+}
+
 function buildLibraryRows(tokens, scanResults, interval) {
   const scanMap = new Map((Array.isArray(scanResults) ? scanResults : []).map((item) => [getTradeSymbol(item), item]));
 
@@ -594,6 +614,7 @@ async function loadTokens() {
 
 async function runScan() {
   const interval = els.intervalSelect.value;
+  updateBoardHints(interval);
   const requestedLimit =
     state.tokens.length > 0
       ? Math.min(MAX_SCAN_LIMIT, state.tokens.length)

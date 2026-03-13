@@ -50,6 +50,21 @@ test("scanSymbols should keep original token order when applying limit", async (
   );
 });
 
+test("scanSymbols should skip offline/hidden tokens from rankings", async () => {
+  const service = createService();
+  service.fetchTokenList = async () => [
+    { symbol: "ACTIVE_1USDT", name: "ActiveOne" },
+    { symbol: "OFFLINE_1USDT", name: "OfflineOne", offline: true },
+    { symbol: "HIDDEN_1USDT", name: "HiddenOne", cexOffDisplay: true },
+  ];
+
+  const result = await service.scanSymbols({ interval: "1h", limit: 100 });
+
+  assert.equal(result.scannedCount, 1);
+  assert.equal(result.successCount, 1);
+  assert.deepEqual(result.results.map((item) => item.symbol), ["ACTIVE_1USDT"]);
+});
+
 test("scanSymbols should use alphaId + USDT as trading symbol when provided", async () => {
   const service = new BinanceAlphaService({
     baseUrl: "https://www.binance.com",
@@ -130,4 +145,37 @@ test("scanSymbols should cap single request size at configured maximum", async (
   assert.equal(result.requestedLimit, 9999);
   assert.equal(result.effectiveLimit, 5000);
   assert.equal(result.scannedCount, 600);
+});
+
+test("fetchScanSnapshot should use ticker 24h priceChangePct for 24h interval", async () => {
+  const service = new BinanceAlphaService({
+    baseUrl: "https://www.binance.com",
+    demoMode: false,
+  });
+
+  service.fetchTicker = async () => ({
+    symbol: "TESTUSDT",
+    lastPrice: 1,
+    openPrice: 2,
+    volume: 1000,
+    quoteVolume: 2000,
+    tradeCount24h: 100,
+    priceChangePct: -50,
+  });
+  service.fetchKlines = async () =>
+    new Array(24).fill(0).map((_, i) => ({
+      openTime: i * 3600000,
+      closeTime: (i + 1) * 3600000 - 1,
+      open: 1,
+      close: 1.2,
+      high: 1.2,
+      low: 1,
+      volume: 100,
+      tradeCount: 10,
+    }));
+
+  const snapshot = await service.fetchScanSnapshot("TESTUSDT", "24h");
+
+  assert.equal(snapshot.interval, "24h");
+  assert.equal(snapshot.market.priceChangePct, -50);
 });

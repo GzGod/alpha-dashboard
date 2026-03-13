@@ -69,6 +69,23 @@ function round(value, digits = 2) {
   return Number(toNumber(value).toFixed(digits));
 }
 
+function toBoolean(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  if (typeof value === "number") {
+    return value !== 0;
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    return normalized === "true" || normalized === "1" || normalized === "yes";
+  }
+
+  return false;
+}
+
 function unwrapData(payload) {
   if (payload && typeof payload === "object" && "data" in payload) {
     return payload.data;
@@ -138,6 +155,16 @@ function toTradeSymbol(tokenLike) {
   }
 
   return symbol;
+}
+
+function shouldExcludeToken(row) {
+  if (!row || typeof row !== "object") {
+    return true;
+  }
+
+  // Binance Alpha token list includes many hidden/offline assets.
+  // Exclude those so rankings focus on currently visible tradable set.
+  return toBoolean(row.offline) || toBoolean(row.cexOffDisplay) || toBoolean(row.offsell);
 }
 
 function normalizeChainSlug({ chainName, chainId }) {
@@ -334,6 +361,9 @@ function selectScannableSymbols(tokens, limit) {
     if (!token || typeof token !== "object") {
       continue;
     }
+    if (shouldExcludeToken(token)) {
+      continue;
+    }
 
     const tradeSymbol = toTradeSymbol(token) || String(token.symbol || token.tokenId || token.id || "").trim();
     if (!tradeSymbol || seen.has(tradeSymbol)) {
@@ -348,6 +378,9 @@ function selectScannableSymbols(tokens, limit) {
       name: String(token.name || token.tokenName || displaySymbol || tradeSymbol),
       tokenId: String(token.tokenId || token.id || displaySymbol || tradeSymbol),
       alphaId: String(token.alphaId || ""),
+      offline: toBoolean(token.offline),
+      offsell: toBoolean(token.offsell),
+      cexOffDisplay: toBoolean(token.cexOffDisplay),
       chainName: String(token.chainName || ""),
       chainId: String(token.chainId || ""),
       contractAddress: String(token.contractAddress || token.address || ""),
@@ -386,6 +419,9 @@ function normalizeTokenList(data) {
     if (!row || typeof row !== "object") {
       continue;
     }
+    if (shouldExcludeToken(row)) {
+      continue;
+    }
 
     const displaySymbol = String(row.symbol || row.pair || row.tokenSymbol || row.tokenId || row.id || "").trim();
     const tradeSymbol = toTradeSymbol(row) || displaySymbol;
@@ -401,6 +437,9 @@ function normalizeTokenList(data) {
       name: String(row.name || row.tokenName || symbol),
       tokenId: String(row.tokenId || row.id || symbol),
       alphaId: String(row.alphaId || ""),
+      offline: toBoolean(row.offline),
+      offsell: toBoolean(row.offsell),
+      cexOffDisplay: toBoolean(row.cexOffDisplay),
       chainName: String(row.chainName || ""),
       chainId: String(row.chainId || ""),
       contractAddress: String(row.contractAddress || row.address || ""),
@@ -764,10 +803,10 @@ export class BinanceAlphaService {
     const baselineVolumeAvg = volumeSnapshot.baselineVolumeAvg;
     const priceFromWindow = derivePriceChangePct(klines, windowConfig.currentBars);
     const priceChangePct =
-      Math.abs(priceFromWindow) > 0
-        ? priceFromWindow
-        : windowConfig.key === "24h"
-          ? ticker.priceChangePct
+      windowConfig.key === "24h"
+        ? ticker.priceChangePct
+        : Math.abs(priceFromWindow) > 0
+          ? priceFromWindow
           : 0;
     const volumeSpikePct = calculateVolumeSpikePct(currentVolume, baselineVolumes);
     const tradeCount = deriveWindowTradeCount(klines, windowConfig.currentBars) || ticker.tradeCount24h || 0;
@@ -887,6 +926,9 @@ export class BinanceAlphaService {
         tokenName:
           item.tokenMeta?.name || item.tokenMeta?.symbol || item.overview.symbol || item.symbol,
         alphaId: item.tokenMeta?.alphaId || "",
+        offline: toBoolean(item.tokenMeta?.offline),
+        offsell: toBoolean(item.tokenMeta?.offsell),
+        cexOffDisplay: toBoolean(item.tokenMeta?.cexOffDisplay),
         chainName: item.tokenMeta?.chainName || "",
         chainId: item.tokenMeta?.chainId || "",
         contractAddress: item.tokenMeta?.contractAddress || "",
