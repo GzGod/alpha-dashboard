@@ -402,10 +402,33 @@ button:hover {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 10px;
+  gap: 12px;
 }
 
 .table-head h3 {
   margin: 0;
+}
+
+.table-head-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.author-link {
+  font-size: 12px;
+  color: #f0b90b;
+  border: 1px solid rgba(240, 185, 11, 0.35);
+  border-radius: 999px;
+  padding: 4px 10px;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+.author-link:hover {
+  color: #111a2c;
+  background: #f0b90b;
+  border-color: #f0b90b;
 }
 
 .muted {
@@ -552,5 +575,14 @@ tr.clickable:hover {
   .stats-grid,
   .boards-grid {
     grid-template-columns: 1fr;
+  }
+
+  .table-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .table-head-left {
+    flex-wrap: wrap;
   }
 }
