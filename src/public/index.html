@@ -16,14 +16,14 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <span class="brand-mark">鈼?/span>
+          <span class="brand-mark">◆</span>
           <span>Alpha Board</span>
         </div>
         <nav class="top-nav">
-          <a href="#overview" data-section="overview" class="active">鎬昏</a>
-          <a href="#trading-data" data-section="trading-data">浜ゆ槗鏁版嵁</a>
-          <a href="#anomaly-rankings" data-section="anomaly-rankings">寮傚姩姒?/a>
-          <a href="#token-library" data-section="token-library">浠ｅ竵搴?/a>
+          <a href="#overview" data-section="overview" class="active">总览</a>
+          <a href="#trading-data" data-section="trading-data">交易数据</a>
+          <a href="#anomaly-rankings" data-section="anomaly-rankings">异动榜</a>
+          <a href="#token-library" data-section="token-library">代币库</a>
         </nav>
         <div class="meta">
           <span id="modeChip" class="chip">LIVE</span>
@@ -34,17 +34,17 @@
 
     <main class="layout">
       <section id="overview" class="headline">
-        <h1>Binance Alpha 鐩戞帶鍙?/h1>
+        <h1>Binance Alpha 监控台</h1>
       </section>
 
       <section id="trading-data" class="panel controls">
         <label>
-          浠ｅ竵鍚嶇О
-          <input id="tokenInput" list="tokenOptions" type="text" placeholder="杈撳叆鍚嶇О鎴栫畝绉帮紝渚嬪 Nebula3 / SN3" />
+          代币名称
+          <input id="tokenInput" list="tokenOptions" type="text" placeholder="输入名称或简称，例如 Nebula3 / SN3" />
           <datalist id="tokenOptions"></datalist>
         </label>
         <label>
-          鍛ㄦ湡
+          周期
           <select id="intervalSelect">
             <option value="15m">15m</option>
             <option value="1h">1h</option>
@@ -53,20 +53,20 @@
           </select>
         </label>
         <label>
-          姒滃崟鎵弿鏁伴噺
+          榜单扫描数量
           <input id="scanLimitInput" type="number" min="1" max="5000" value="0" readonly />
         </label>
-        <button id="scanBtn">鍒锋柊鎵弿</button>
-        <button id="loadBtn" class="secondary">鍔犺浇浠ｅ竵璇︽儏</button>
+        <button id="scanBtn">刷新扫描</button>
+        <button id="loadBtn" class="secondary">加载代币详情</button>
       </section>
 
       <section class="stats-grid">
         <article class="panel stat">
           <p class="stat-title">
-            浠锋牸鍋忕Щ
-            <span class="info-tip" tabindex="0" aria-label="浠锋牸鍋忕Щ璇存槑">
+            价格偏移
+            <span class="info-tip" tabindex="0" aria-label="价格偏移说明">
               i
-              <span class="tip-pop">鍦ㄦ墍閫夋椂闂寸獥鍙ｅ唴锛屾敹鐩樹环鐩稿绐楀彛璧风偣浠锋牸鐨勫彉鍖栫櫨鍒嗘瘮銆?/span>
+              <span class="tip-pop">在所选时间窗口内，收盘价相对窗口起点价格的变化百分比。</span>
             </span>
           </p>
           <h2 id="priceMoveStat">--%</h2>
@@ -74,20 +74,21 @@
         </article>
         <article class="panel stat">
           <p class="stat-title">
-            鎴愪氦閲忓紓鍔?            <span class="info-tip" tabindex="0" aria-label="鎴愪氦閲忓紓鍔ㄨ鏄?>
+            成交量异动
+            <span class="info-tip" tabindex="0" aria-label="成交量异动说明">
               i
-              <span class="tip-pop">褰撳墠绐楀彛鎴愪氦閲忕浉瀵瑰巻鍙插熀绾垮潎鍊肩殑鍋忕姣斾緥锛?%闄勮繎琛ㄧず鎺ヨ繎甯告€併€?/span>
+              <span class="tip-pop">当前窗口成交量相对历史基线均值的偏离比例；0%附近表示接近常态。</span>
             </span>
           </p>
           <h2 id="volumeSpikeStat">--%</h2>
-          <small>褰撳墠 vs 鍘嗗彶骞冲潎</small>
+          <small>当前 vs 历史平均</small>
         </article>
         <article class="panel stat">
           <p class="stat-title">
-            杩戞鎴愪氦绗旀暟
-            <span class="info-tip" tabindex="0" aria-label="鎴愪氦绗旀暟璇存槑">
+            近段成交笔数
+            <span class="info-tip" tabindex="0" aria-label="成交笔数说明">
               i
-              <span class="tip-pop">鎵€閫夌獥鍙ｅ唴鑱氬悎鎴愪氦绗旀暟锛圓gg Trades锛夛紝鐢ㄤ簬琛￠噺浜ゆ槗娲昏穬搴︺€?/span>
+              <span class="tip-pop">所选窗口内聚合成交笔数（Agg Trades），用于衡量交易活跃度。</span>
             </span>
           </p>
           <h2 id="tradeCountStat">--</h2>
@@ -95,10 +96,10 @@
         </article>
         <article class="panel stat">
           <p class="stat-title">
-            寮傚姩璇勫垎
-            <span class="info-tip" tabindex="0" aria-label="寮傚姩璇勫垎璇存槑">
+            异动评分
+            <span class="info-tip" tabindex="0" aria-label="异动评分说明">
               i
-              <span class="tip-pop">缁煎悎浠锋牸鍋忕Щ銆佹垚浜ら噺寮傚姩鍜屾垚浜ょ瑪鏁拌绠楋紝鍒嗗€艰秺楂樿〃绀哄紓鍔ㄨ秺寮恒€?/span>
+              <span class="tip-pop">综合价格偏移、成交量异动和成交笔数计算，分值越高表示异动越强。</span>
             </span>
           </p>
           <h2 id="scoreStat">--</h2>
@@ -109,29 +110,29 @@
       <section id="anomaly-rankings" class="boards-grid">
         <article class="panel board">
           <div class="board-head">
-            <h3>娑ㄥ箙姒?/h3>
-            <span id="gainersHint" class="board-hint">Top movers 路 15m</span>
+            <h3>涨幅榜</h3>
+            <span id="gainersHint" class="board-hint">Top movers · 15m</span>
           </div>
           <ul id="gainersList" class="rank-list"></ul>
         </article>
         <article class="panel board">
           <div class="board-head">
-            <h3>璺屽箙姒?/h3>
-            <span id="losersHint" class="board-hint">Top losers 路 15m</span>
+            <h3>跌幅榜</h3>
+            <span id="losersHint" class="board-hint">Top losers · 15m</span>
           </div>
           <ul id="losersList" class="rank-list"></ul>
         </article>
         <article class="panel board">
           <div class="board-head">
-            <h3>寮傚姩姒?/h3>
-            <span id="anomalyHint" class="board-hint">By signal score 路 15m</span>
+            <h3>异动榜</h3>
+            <span id="anomalyHint" class="board-hint">By signal score · 15m</span>
           </div>
           <ul id="anomalyList" class="rank-list"></ul>
         </article>
         <article class="panel board">
           <div class="board-head">
-            <h3>浜ゆ槗閲忔</h3>
-            <span id="volumeHint" class="board-hint">By quote volume 路 15m</span>
+            <h3>交易量榜</h3>
+            <span id="volumeHint" class="board-hint">By quote volume · 15m</span>
           </div>
           <ul id="volumeList" class="rank-list"></ul>
         </article>
@@ -154,11 +155,11 @@
           <table>
             <thead>
               <tr>
-                <th>浠ｅ竵</th>
-                <th>浠锋牸%</th>
-                <th>寮傚姩鍒?/th>
-                <th>鎴愪氦閲?Quote)</th>
-                <th>绾у埆</th>
+                <th>代币</th>
+                <th>价格%</th>
+                <th>异动分</th>
+                <th>成交量(Quote)</th>
+                <th>级别</th>
               </tr>
             </thead>
             <tbody id="marketTableBody"></tbody>
@@ -170,12 +171,11 @@
     <div id="scanModal" class="scan-modal" hidden>
       <div class="scan-modal-card" role="status" aria-live="polite">
         <div class="scan-spinner" aria-hidden="true"></div>
-        <p>鎵弿涓紝璇疯€愬績绛夊緟...</p>
-        <small>鍏ㄩ噺浠ｅ竵鎵弿浼氭瘮杈冩參锛岃鍕块噸澶嶇偣鍑汇€?/small>
+        <p>扫描中，请耐心等待...</p>
+        <small>全量代币扫描会比较慢，请勿重复点击。</small>
       </div>
     </div>
 
     <script type="module" src="/app.js"></script>
   </body>
 </html>
-
