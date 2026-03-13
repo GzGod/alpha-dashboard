@@ -98,3 +98,28 @@ test("scanSymbols should include token display metadata in results", async () =>
   assert.equal(first.tokenName, "Nebula3");
   assert.equal(first.alphaId, "ALPHA_798");
 });
+
+test("scanSymbols should cap single request size to avoid long blocking scans", async () => {
+  const service = new BinanceAlphaService({
+    baseUrl: "https://www.binance.com",
+    demoMode: false,
+  });
+
+  const symbols = new Array(600).fill(0).map((_, i) => ({
+    symbol: `ALPHA_${1000 + i}USDT`,
+  }));
+  service.fetchTokenList = async () => symbols;
+  service.fetchScanSnapshot = async (symbol, interval) => ({
+    symbol,
+    interval,
+    ticker: { quoteVolume: 100, volume: 100 },
+    signal: { score: 1, level: "low", reasons: [] },
+    market: { priceChangePct: 0, volumeSpikePct: 0, tradeCount: 0 },
+  });
+
+  const result = await service.scanSymbols({ interval: "1h", limit: 9999 });
+
+  assert.equal(result.requestedLimit, 9999);
+  assert.equal(result.effectiveLimit, 300);
+  assert.equal(result.scannedCount, 300);
+});

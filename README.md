@@ -53,6 +53,10 @@ curl "http://localhost:3000/api/overview?symbol=ALPHA_798USDT&interval=4h"
 curl "http://localhost:3000/api/tokens?limit=5000"
 ```
 
+Notes:
+- token library is full list from `/api/tokens`, independent from scan size
+- single scan request is capped to `300` symbols for responsiveness
+
 ## Tests
 
 ```bash

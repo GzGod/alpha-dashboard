@@ -1,4 +1,5 @@
-const MAX_SCAN_LIMIT = 2000;
+const MAX_SCAN_LIMIT = 300;
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
 
 const els = {
   tokenInput: document.querySelector("#tokenInput"),
@@ -254,8 +255,21 @@ function resolveSymbolFromInput(rawInput) {
   return token.tradeSymbol;
 }
 
-async function getJson(url) {
-  const res = await fetch(url);
+async function getJson(url, { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { signal: controller.signal });
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error("请求超时，请降低扫描数量后重试");
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
   const body = await res.json();
   if (!res.ok) {
     const detail = body.detail ? `: ${body.detail}` : "";
@@ -479,16 +493,17 @@ async function loadTokens() {
     })
     .join("");
   els.tokenOptions.innerHTML = options;
-
-  if (state.tokens.length > 0) {
-    const fullLimit = Math.min(state.tokens.length, MAX_SCAN_LIMIT);
-    els.scanLimitInput.value = String(fullLimit);
-  }
 }
 
 async function runScan() {
   const interval = els.intervalSelect.value;
-  const limit = Math.max(5, Math.min(MAX_SCAN_LIMIT, Number(els.scanLimitInput.value) || state.tokens.length || 100));
+  const requestedLimit = Math.max(5, Number(els.scanLimitInput.value) || 100);
+  const limit = Math.min(MAX_SCAN_LIMIT, requestedLimit);
+  if (requestedLimit > MAX_SCAN_LIMIT) {
+    els.scanLimitInput.value = String(limit);
+  }
+
+  els.scanMeta.textContent = `扫描中...（请求 ${requestedLimit}，实际 ${limit}）`;
   const result = await getJson(`/api/scan?interval=${encodeURIComponent(interval)}&limit=${limit}`);
 
   state.lastScan = result;
@@ -498,7 +513,9 @@ async function runScan() {
   renderBoards(rankings);
   renderMarketTable(libraryRows);
 
-  els.scanMeta.textContent = `扫描 ${result.scannedCount} / 成功 ${result.successCount} / 失败 ${result.failureCount} / 代币库 ${state.tokens.length}`;
+  const requested = Number(result.requestedLimit ?? requestedLimit);
+  const effective = Number(result.effectiveLimit ?? limit);
+  els.scanMeta.textContent = `扫描 ${result.scannedCount} / 成功 ${result.successCount} / 失败 ${result.failureCount} / 代币库 ${state.tokens.length} / 请求 ${requested}→${effective}`;
   els.timeChip.textContent = fmtTime(result.updatedAt);
 
   const top = rankings.anomaly?.[0] || result.results?.[0];
@@ -530,5 +547,10 @@ els.intervalSelect.addEventListener("change", () => {
 initTopNav();
 
 loadTokens()
-  .then(() => runScan())
+  .then(() => {
+    const initialRows = buildLibraryRows(state.tokens, [], els.intervalSelect.value);
+    renderMarketTable(initialRows);
+    els.scanMeta.textContent = `代币库已加载 ${state.tokens.length} 条，正在计算榜单...`;
+    return runScan();
+  })
   .catch(showError);

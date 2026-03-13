@@ -5,6 +5,7 @@ const TOKEN_LIST_PATH = "/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha
 const TICKER_PATH = "/bapi/defi/v1/public/alpha-trade/ticker";
 const AGG_TRADES_PATH = "/bapi/defi/v1/public/alpha-trade/agg-trades";
 const KLINES_PATH = "/bapi/defi/v1/public/alpha-trade/klines";
+const MAX_SCAN_SYMBOLS = 300;
 const SUPPORTED_WINDOWS = {
   "15m": {
     key: "15m",
@@ -277,7 +278,7 @@ function deriveWindowTradeCount(klines, currentBars, nowMs = Date.now()) {
 }
 
 function selectScannableSymbols(tokens, limit) {
-  const normalizedLimit = Math.max(1, Math.min(2000, toNumber(limit, 100)));
+  const normalizedLimit = Math.max(1, Math.min(10000, toNumber(limit, 100)));
   const seen = new Set();
   const allTokens = [];
 
@@ -791,10 +792,13 @@ export class BinanceAlphaService {
     interval = "1h",
     limit = this.scanSymbolLimit,
   } = {}) {
+    const requestedLimit = Math.max(1, toNumber(limit, this.scanSymbolLimit));
+    const effectiveLimit = Math.max(1, Math.min(MAX_SCAN_SYMBOLS, requestedLimit));
+
     const tokens = await this.fetchTokenList();
     const { symbols, selectedTokens, selectionMode, tokenCount } = selectScannableSymbols(
       tokens,
-      toNumber(limit, this.scanSymbolLimit),
+      effectiveLimit,
     );
     const tokenByTradeSymbol = new Map(
       selectedTokens.map((token) => [token.tradeSymbol, token]),
@@ -847,6 +851,9 @@ export class BinanceAlphaService {
 
     return {
       interval,
+      requestedLimit,
+      effectiveLimit,
+      maxScanLimit: MAX_SCAN_SYMBOLS,
       tokenCount,
       selectionMode,
       scannedCount: symbols.length,
