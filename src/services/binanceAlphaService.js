@@ -40,6 +40,34 @@ function extractArray(data) {
   return [];
 }
 
+function toTradeSymbol(tokenLike) {
+  if (!tokenLike || typeof tokenLike !== "object") {
+    return "";
+  }
+
+  const direct = String(
+    tokenLike.tradeSymbol || tokenLike.tradingSymbol || tokenLike.symbolForTrade || "",
+  ).trim();
+  if (direct) {
+    return direct;
+  }
+
+  const alphaId = String(tokenLike.alphaId || "").trim();
+  if (alphaId) {
+    if (/(USDT|USDC|FDUSD|BUSD)$/i.test(alphaId)) {
+      return alphaId;
+    }
+    return `${alphaId}USDT`;
+  }
+
+  const symbol = String(tokenLike.symbol || tokenLike.pair || tokenLike.tokenSymbol || "").trim();
+  if (symbol && /(USDT|USDC|FDUSD|BUSD)$/i.test(symbol)) {
+    return symbol;
+  }
+
+  return symbol;
+}
+
 function selectScannableSymbols(tokens, limit) {
   const normalizedLimit = Math.max(1, Math.min(100, toNumber(limit, 20)));
   const seen = new Set();
@@ -50,7 +78,7 @@ function selectScannableSymbols(tokens, limit) {
       continue;
     }
 
-    const symbol = String(token.symbol || token.tokenId || token.id || "").trim();
+    const symbol = toTradeSymbol(token) || String(token.symbol || token.tokenId || token.id || "").trim();
     if (!symbol || seen.has(symbol)) {
       continue;
     }
@@ -79,7 +107,9 @@ function normalizeTokenList(data) {
       continue;
     }
 
-    const symbol = String(row.symbol || row.pair || row.tokenSymbol || row.tokenId || row.id || "").trim();
+    const displaySymbol = String(row.symbol || row.pair || row.tokenSymbol || row.tokenId || row.id || "").trim();
+    const tradeSymbol = toTradeSymbol(row) || displaySymbol;
+    const symbol = displaySymbol || tradeSymbol;
     if (!symbol || seen.has(symbol)) {
       continue;
     }
@@ -87,8 +117,10 @@ function normalizeTokenList(data) {
     seen.add(symbol);
     tokens.push({
       symbol,
+      tradeSymbol,
       name: String(row.name || row.tokenName || symbol),
       tokenId: String(row.tokenId || row.id || symbol),
+      alphaId: String(row.alphaId || ""),
     });
   }
 
@@ -311,10 +343,34 @@ export class BinanceAlphaService {
   async fetchTokenList() {
     if (this.demoMode) {
       return [
-        { symbol: "ALPHA_175USDT", name: "ALPHA 175", tokenId: "alpha-175" },
-        { symbol: "BETA_402USDT", name: "BETA 402", tokenId: "beta-402" },
-        { symbol: "GAMMA_008USDT", name: "GAMMA 008", tokenId: "gamma-008" },
-        { symbol: "OMEGA_999USDT", name: "OMEGA 999", tokenId: "omega-999" },
+        {
+          symbol: "SN3",
+          tradeSymbol: "ALPHA_798USDT",
+          alphaId: "ALPHA_798",
+          name: "Nebula3",
+          tokenId: "alpha-798",
+        },
+        {
+          symbol: "URO",
+          tradeSymbol: "ALPHA_175USDT",
+          alphaId: "ALPHA_175",
+          name: "URO",
+          tokenId: "alpha-175",
+        },
+        {
+          symbol: "BETA",
+          tradeSymbol: "ALPHA_402USDT",
+          alphaId: "ALPHA_402",
+          name: "BETA",
+          tokenId: "alpha-402",
+        },
+        {
+          symbol: "GAMMA",
+          tradeSymbol: "ALPHA_008USDT",
+          alphaId: "ALPHA_008",
+          name: "GAMMA",
+          tokenId: "alpha-008",
+        },
       ];
     }
 

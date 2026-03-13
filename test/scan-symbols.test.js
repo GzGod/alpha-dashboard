@@ -46,3 +46,32 @@ test("scanSymbols should prioritize USDT symbols when available", async () => {
     ["BETA_402USDT", "GAMMA_008USDT"],
   );
 });
+
+test("scanSymbols should use alphaId + USDT as trading symbol when provided", async () => {
+  const service = new BinanceAlphaService({
+    baseUrl: "https://www.binance.com",
+    demoMode: false,
+  });
+
+  const scannedSymbols = [];
+  service.fetchTokenList = async () => [
+    {
+      symbol: "SN3",
+      alphaId: "ALPHA_798",
+    },
+  ];
+  service.fetchOverview = async (symbol, interval) => {
+    scannedSymbols.push(symbol);
+    return {
+      symbol,
+      interval,
+      signal: { score: 1, level: "low", reasons: [] },
+      market: { priceChangePct: 0, volumeSpikePct: 0, tradeCount: 0 },
+    };
+  };
+
+  const result = await service.scanSymbols({ interval: "1m", limit: 20 });
+
+  assert.equal(result.scannedCount, 1);
+  assert.deepEqual(scannedSymbols, ["ALPHA_798USDT"]);
+});
