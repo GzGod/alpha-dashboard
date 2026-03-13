@@ -20,10 +20,10 @@
           <span>Alpha Board</span>
         </div>
         <nav class="top-nav">
-          <a href="#" class="active">总览</a>
-          <a href="#">交易数据</a>
-          <a href="#">异动榜</a>
-          <a href="#">代币库</a>
+          <a href="#overview" data-section="overview" class="active">总览</a>
+          <a href="#trading-data" data-section="trading-data">交易数据</a>
+          <a href="#anomaly-rankings" data-section="anomaly-rankings">异动榜</a>
+          <a href="#token-library" data-section="token-library">代币库</a>
         </nav>
         <div class="meta">
           <span id="modeChip" class="chip">LIVE</span>
@@ -33,11 +33,11 @@
     </header>
 
     <main class="layout">
-      <section class="headline">
+      <section id="overview" class="headline">
         <h1>Binance Alpha 监控台</h1>
       </section>
 
-      <section class="panel controls">
+      <section id="trading-data" class="panel controls">
         <label>
           代币名称
           <input id="tokenInput" list="tokenOptions" type="text" placeholder="输入名称或简称，例如 Nebula3 / SN3" />
@@ -83,7 +83,7 @@
         </article>
       </section>
 
-      <section class="boards-grid">
+      <section id="anomaly-rankings" class="boards-grid">
         <article class="panel board">
           <div class="board-head">
             <h3>涨幅榜</h3>
@@ -114,7 +114,7 @@
         </article>
       </section>
 
-      <section class="panel table-panel">
+      <section id="token-library" class="panel table-panel">
         <div class="table-head">
           <h3>Alpha 全量列表</h3>
           <span id="scanMeta" class="muted">--</span>

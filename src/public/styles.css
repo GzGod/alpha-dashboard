@@ -16,6 +16,10 @@
   box-sizing: border-box;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -68,9 +72,30 @@ a {
   font-size: 14px;
 }
 
+.top-nav a {
+  position: relative;
+  padding: 4px 0;
+  transition: color 120ms ease;
+}
+
+.top-nav a:hover {
+  color: var(--text-1);
+}
+
 .top-nav a.active {
   color: var(--text-1);
   font-weight: 600;
+}
+
+.top-nav a.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -12px;
+  height: 2px;
+  background: var(--yellow);
+  border-radius: 2px;
 }
 
 .meta {
@@ -93,6 +118,10 @@ a {
   padding: 24px 20px 48px;
   display: grid;
   gap: 14px;
+}
+
+section[id] {
+  scroll-margin-top: 86px;
 }
 
 .headline h1 {

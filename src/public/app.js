@@ -19,12 +19,78 @@ const els = {
   anomalyList: document.querySelector("#anomalyList"),
   volumeList: document.querySelector("#volumeList"),
   marketTableBody: document.querySelector("#marketTableBody"),
+  topNavLinks: Array.from(document.querySelectorAll(".top-nav a[data-section]")),
 };
 
 const state = {
   tokens: [],
   lastScan: null,
 };
+
+function setActiveTopNav(sectionId) {
+  for (const link of els.topNavLinks) {
+    const isActive = link.dataset.section === sectionId;
+    link.classList.toggle("active", isActive);
+    link.setAttribute("aria-current", isActive ? "page" : "false");
+  }
+}
+
+function initTopNav() {
+  if (!els.topNavLinks.length) {
+    return;
+  }
+
+  const sections = [];
+  for (const link of els.topNavLinks) {
+    const sectionId = link.dataset.section;
+    const section = sectionId ? document.getElementById(sectionId) : null;
+    if (section) {
+      sections.push(section);
+    }
+
+    link.addEventListener("click", (event) => {
+      if (!section) {
+        return;
+      }
+
+      event.preventDefault();
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
+      setActiveTopNav(sectionId);
+      if (history.replaceState) {
+        history.replaceState(null, "", `#${sectionId}`);
+      }
+    });
+  }
+
+  if ("IntersectionObserver" in window && sections.length) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible.length) {
+          setActiveTopNav(visible[0].target.id);
+        }
+      },
+      {
+        root: null,
+        threshold: [0.35, 0.6],
+        rootMargin: "-90px 0px -45% 0px",
+      },
+    );
+
+    for (const section of sections) {
+      observer.observe(section);
+    }
+  }
+
+  const initialHash = window.location.hash.replace("#", "");
+  if (initialHash) {
+    setActiveTopNav(initialHash);
+  } else {
+    setActiveTopNav(els.topNavLinks[0].dataset.section || "");
+  }
+}
 
 function toNumber(value, fallback = 0) {
   const n = Number(value);
@@ -380,5 +446,7 @@ els.tokenInput.addEventListener("keydown", (event) => {
 els.intervalSelect.addEventListener("change", () => {
   runScan().catch(showError);
 });
+
+initTopNav();
 
 Promise.all([loadTokens(), runScan()]).catch(showError);
