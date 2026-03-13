@@ -3,39 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Alpha Radar | Railway MVP</title>
+    <title>Alpha Market Board</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div class="backdrop"></div>
-    <main class="page">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">BINANCE ALPHA WATCH</p>
-          <h1>Alpha 异动雷达看板</h1>
-          <p class="subtext">
-            实时扫描成交量异动、价格偏移与成交笔数爆发。后端可直接部署 Railway。
-          </p>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <span class="brand-mark">◆</span>
+          <span>Alpha Board</span>
         </div>
-        <div class="chip-group">
-          <span id="modeChip" class="chip">加载中</span>
+        <nav class="top-nav">
+          <a href="#" class="active">总览</a>
+          <a href="#">交易数据</a>
+          <a href="#">异动榜</a>
+          <a href="#">代币库</a>
+        </nav>
+        <div class="meta">
+          <span id="modeChip" class="chip">LIVE</span>
           <span id="timeChip" class="chip">--</span>
         </div>
-      </header>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="headline">
+        <h1>Binance Alpha 监控台</h1>
+        <p>风格参考 Alpha 交易页，聚合涨跌幅、异动评分和交易量排行榜。</p>
+      </section>
 
       <section class="panel controls">
         <label>
-          Symbol
-          <input id="symbolInput" type="text" placeholder="例如 ALPHA_175USDT" />
+          代币名称
+          <input id="tokenInput" list="tokenOptions" type="text" placeholder="输入名称或简称，例如 Nebula3 / SN3" />
+          <datalist id="tokenOptions"></datalist>
         </label>
         <label>
-          Interval
+          周期
           <select id="intervalSelect">
             <option value="1m">1m</option>
             <option value="5m">5m</option>
@@ -44,25 +54,28 @@
           </select>
         </label>
         <label>
-          Scan 数量
+          扫描数量
           <input id="scanLimitInput" type="number" min="5" max="100" value="20" />
         </label>
         <button id="scanBtn">刷新扫描</button>
-        <button id="loadBtn" class="secondary">加载单币详情</button>
+        <button id="loadBtn" class="secondary">加载代币详情</button>
       </section>
 
       <section class="stats-grid">
         <article class="panel stat">
           <p>价格偏移</p>
           <h2 id="priceMoveStat">--%</h2>
+          <small id="symbolMeta">--</small>
         </article>
         <article class="panel stat">
           <p>成交量异动</p>
           <h2 id="volumeSpikeStat">--%</h2>
+          <small>当前 vs 历史平均</small>
         </article>
         <article class="panel stat">
           <p>近段成交笔数</p>
           <h2 id="tradeCountStat">--</h2>
+          <small>Agg Trades</small>
         </article>
         <article class="panel stat">
           <p>异动评分</p>
@@ -71,35 +84,56 @@
         </article>
       </section>
 
-      <section class="content-grid">
-        <article class="panel">
-          <div class="panel-title-row">
-            <h3>Top 异动榜</h3>
-            <span id="scanMeta" class="muted">--</span>
+      <section class="boards-grid">
+        <article class="panel board">
+          <div class="board-head">
+            <h3>涨幅榜</h3>
+            <span class="board-hint">Top movers</span>
           </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Token</th>
-                  <th>Score</th>
-                  <th>价格%</th>
-                  <th>量能%</th>
-                  <th>级别</th>
-                </tr>
-              </thead>
-              <tbody id="scanTableBody"></tbody>
-            </table>
-          </div>
+          <ul id="gainersList" class="rank-list"></ul>
         </article>
+        <article class="panel board">
+          <div class="board-head">
+            <h3>跌幅榜</h3>
+            <span class="board-hint">Top losers</span>
+          </div>
+          <ul id="losersList" class="rank-list"></ul>
+        </article>
+        <article class="panel board">
+          <div class="board-head">
+            <h3>异动榜</h3>
+            <span class="board-hint">By signal score</span>
+          </div>
+          <ul id="anomalyList" class="rank-list"></ul>
+        </article>
+        <article class="panel board">
+          <div class="board-head">
+            <h3>交易量榜</h3>
+            <span class="board-hint">By quote volume</span>
+          </div>
+          <ul id="volumeList" class="rank-list"></ul>
+        </article>
+      </section>
 
-        <article class="panel">
-          <div class="panel-title-row">
-            <h3>近 20 根 K 线成交量</h3>
-            <span id="symbolMeta" class="muted">--</span>
-          </div>
-          <div id="volumeBars" class="bars"></div>
-        </article>
+      <section class="panel table-panel">
+        <div class="table-head">
+          <h3>Alpha 全量列表</h3>
+          <span id="scanMeta" class="muted">--</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>代币</th>
+                <th>价格%</th>
+                <th>异动分</th>
+                <th>成交量(Quote)</th>
+                <th>级别</th>
+              </tr>
+            </thead>
+            <tbody id="marketTableBody"></tbody>
+          </table>
+        </div>
       </section>
     </main>
 

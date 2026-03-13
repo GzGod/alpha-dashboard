@@ -68,6 +68,42 @@ function toTradeSymbol(tokenLike) {
   return symbol;
 }
 
+function byNumberDesc(selector) {
+  return (a, b) => toNumber(selector(b)) - toNumber(selector(a));
+}
+
+function byNumberAsc(selector) {
+  return (a, b) => toNumber(selector(a)) - toNumber(selector(b));
+}
+
+export function buildRankings(results, topN = 10) {
+  const list = Array.isArray(results) ? results : [];
+  const cap = Math.max(1, Math.min(50, toNumber(topN, 10)));
+
+  const gainers = [...list]
+    .sort(byNumberDesc((item) => item?.market?.priceChangePct))
+    .slice(0, cap);
+
+  const losers = [...list]
+    .sort(byNumberAsc((item) => item?.market?.priceChangePct))
+    .slice(0, cap);
+
+  const anomaly = [...list]
+    .sort(byNumberDesc((item) => item?.signal?.score))
+    .slice(0, cap);
+
+  const volume = [...list]
+    .sort(byNumberDesc((item) => item?.ticker?.quoteVolume ?? item?.ticker?.volume))
+    .slice(0, cap);
+
+  return {
+    gainers,
+    losers,
+    anomaly,
+    volume,
+  };
+}
+
 function selectScannableSymbols(tokens, limit) {
   const normalizedLimit = Math.max(1, Math.min(100, toNumber(limit, 20)));
   const seen = new Set();
@@ -529,6 +565,8 @@ export class BinanceAlphaService {
       error: item.error,
     }));
 
+    const rankings = buildRankings(results, 10);
+
     return {
       interval,
       tokenCount,
@@ -538,6 +576,7 @@ export class BinanceAlphaService {
       failureCount: failures.length,
       failures,
       results,
+      rankings,
       updatedAt: new Date().toISOString(),
     };
   }
