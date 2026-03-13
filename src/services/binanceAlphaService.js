@@ -40,6 +40,35 @@ function extractArray(data) {
   return [];
 }
 
+function selectScannableSymbols(tokens, limit) {
+  const normalizedLimit = Math.max(1, Math.min(100, toNumber(limit, 20)));
+  const seen = new Set();
+  const allSymbols = [];
+
+  for (const token of tokens) {
+    if (!token || typeof token !== "object") {
+      continue;
+    }
+
+    const symbol = String(token.symbol || token.tokenId || token.id || "").trim();
+    if (!symbol || seen.has(symbol)) {
+      continue;
+    }
+
+    seen.add(symbol);
+    allSymbols.push(symbol);
+  }
+
+  const usdtSymbols = allSymbols.filter((symbol) => /USDT$/i.test(symbol));
+  const selected = (usdtSymbols.length > 0 ? usdtSymbols : allSymbols).slice(0, normalizedLimit);
+
+  return {
+    symbols: selected,
+    selectionMode: usdtSymbols.length > 0 ? "usdt-priority" : "fallback-all",
+    tokenCount: allSymbols.length,
+  };
+}
+
 function normalizeTokenList(data) {
   const rows = extractArray(data);
   const seen = new Set();
@@ -50,7 +79,7 @@ function normalizeTokenList(data) {
       continue;
     }
 
-    const symbol = String(row.symbol || row.pair || row.tokenSymbol || "").trim();
+    const symbol = String(row.symbol || row.pair || row.tokenSymbol || row.tokenId || row.id || "").trim();
     if (!symbol || seen.has(symbol)) {
       continue;
     }
@@ -395,11 +424,10 @@ export class BinanceAlphaService {
     limit = this.scanSymbolLimit,
   } = {}) {
     const tokens = await this.fetchTokenList();
-    const normalizedLimit = Math.max(1, Math.min(100, toNumber(limit, this.scanSymbolLimit)));
-    const symbols = tokens
-      .map((item) => item.symbol)
-      .filter((symbol) => symbol.includes("USDT"))
-      .slice(0, normalizedLimit);
+    const { symbols, selectionMode, tokenCount } = selectScannableSymbols(
+      tokens,
+      toNumber(limit, this.scanSymbolLimit),
+    );
 
     const scanned = await mapWithConcurrency(symbols, 4, async (symbol) => {
       try {
@@ -426,6 +454,8 @@ export class BinanceAlphaService {
 
     return {
       interval,
+      tokenCount,
+      selectionMode,
       scannedCount: symbols.length,
       successCount: results.length,
       failureCount: failures.length,
