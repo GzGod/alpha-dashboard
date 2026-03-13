@@ -410,7 +410,7 @@ function showError(error) {
 
 async function runScan() {
   const interval = els.intervalSelect.value;
-  const limit = Math.max(5, Math.min(100, Number(els.scanLimitInput.value) || 20));
+  const limit = Math.max(5, Math.min(100, Number(els.scanLimitInput.value) || 100));
   const result = await getJson(`/api/scan?interval=${encodeURIComponent(interval)}&limit=${limit}`);
 
   state.lastScan = result;

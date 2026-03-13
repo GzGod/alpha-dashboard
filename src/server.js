@@ -15,6 +15,8 @@ const alphaService = new BinanceAlphaService({
   baseUrl: config.alphaBaseUrl,
   timeoutMs: config.alphaTimeoutMs,
   scanSymbolLimit: config.scanSymbolLimit,
+  volumeCurrentWindow: config.volumeCurrentWindow,
+  volumeBaselineWindow: config.volumeBaselineWindow,
   demoMode: config.demoMode,
 });
 

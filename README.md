@@ -32,7 +32,9 @@ $env:DEMO_MODE='true'; npm run dev
 - `PORT`：默认 `3000`（Railway 会自动注入）
 - `ALPHA_BASE_URL`：默认 `https://www.binance.com`
 - `ALPHA_TIMEOUT_MS`：默认 `12000`
-- `SCAN_SYMBOL_LIMIT`：默认 `20`
+- `SCAN_SYMBOL_LIMIT`：默认 `100`
+- `VOLUME_CURRENT_WINDOW`：默认 `3`（最新 N 根已收盘 K 线做当前量能）
+- `VOLUME_BASELINE_WINDOW`：默认 `20`（往前 N 根已收盘 K 线做基准）
 - `DEMO_MODE`：`true/false`
 
 ## 3. Railway 部署

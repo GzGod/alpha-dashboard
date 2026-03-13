@@ -16,6 +16,8 @@ export const config = {
   port: parseIntEnv(process.env.PORT, 3000),
   alphaBaseUrl: process.env.ALPHA_BASE_URL || "https://www.binance.com",
   alphaTimeoutMs: parseIntEnv(process.env.ALPHA_TIMEOUT_MS, 12000),
-  scanSymbolLimit: parseIntEnv(process.env.SCAN_SYMBOL_LIMIT, 20),
+  scanSymbolLimit: parseIntEnv(process.env.SCAN_SYMBOL_LIMIT, 100),
+  volumeCurrentWindow: parseIntEnv(process.env.VOLUME_CURRENT_WINDOW, 3),
+  volumeBaselineWindow: parseIntEnv(process.env.VOLUME_BASELINE_WINDOW, 20),
   demoMode: parseBoolEnv(process.env.DEMO_MODE, false),
 };

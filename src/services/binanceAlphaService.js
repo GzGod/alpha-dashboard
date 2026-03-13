@@ -76,6 +76,18 @@ function byNumberAsc(selector) {
   return (a, b) => toNumber(selector(a)) - toNumber(selector(b));
 }
 
+function average(values) {
+  const clean = values
+    .map((item) => toNumber(item, NaN))
+    .filter((item) => Number.isFinite(item) && item >= 0);
+
+  if (!clean.length) {
+    return 0;
+  }
+
+  return clean.reduce((sum, item) => sum + item, 0) / clean.length;
+}
+
 export function buildRankings(results, topN = 10) {
   const list = Array.isArray(results) ? results : [];
   const cap = Math.max(1, Math.min(50, toNumber(topN, 10)));
@@ -101,6 +113,59 @@ export function buildRankings(results, topN = 10) {
     losers,
     anomaly,
     volume,
+  };
+}
+
+export function deriveVolumeSnapshot(
+  klines,
+  { nowMs = Date.now(), currentWindow = 3, baselineWindow = 20 } = {},
+) {
+  const rows = Array.isArray(klines) ? [...klines] : [];
+  const sorted = rows
+    .map((row) => ({
+      ...row,
+      openTime: toNumber(row?.openTime),
+      closeTime: toNumber(row?.closeTime),
+      volume: toNumber(row?.volume, NaN),
+    }))
+    .filter((row) => Number.isFinite(row.openTime) && Number.isFinite(row.volume) && row.volume >= 0)
+    .sort((a, b) => a.openTime - b.openTime);
+
+  if (!sorted.length) {
+    return {
+      currentVolume: 0,
+      baselineVolumes: [],
+      baselineVolumeAvg: 0,
+    };
+  }
+
+  const closed = sorted.filter((row) => row.closeTime > 0 && row.closeTime <= nowMs);
+  const source = closed.length >= 2 ? closed : sorted;
+
+  const currentSize = Math.max(1, Math.min(10, toNumber(currentWindow, 3)));
+  const baselineSize = Math.max(1, Math.min(300, toNumber(baselineWindow, 20)));
+
+  const currentCandles = source.slice(-currentSize);
+  const currentRawVolumes = currentCandles.map((row) => row.volume).filter((v) => Number.isFinite(v) && v >= 0);
+  const currentNonZeroVolumes = currentRawVolumes.filter((v) => v > 0);
+  const currentVolume = average(currentNonZeroVolumes.length > 0 ? currentNonZeroVolumes : currentRawVolumes);
+
+  let baselineVolumes = source
+    .slice(-(currentSize + baselineSize), -currentSize)
+    .map((row) => row.volume)
+    .filter((v) => Number.isFinite(v) && v > 0);
+
+  if (baselineVolumes.length === 0) {
+    baselineVolumes = source
+      .slice(0, Math.max(0, source.length - currentSize))
+      .map((row) => row.volume)
+      .filter((v) => Number.isFinite(v) && v > 0);
+  }
+
+  return {
+    currentVolume: round(currentVolume, 8),
+    baselineVolumes,
+    baselineVolumeAvg: round(average(baselineVolumes), 8),
   };
 }
 
@@ -341,12 +406,16 @@ export class BinanceAlphaService {
   constructor({
     baseUrl,
     timeoutMs = 12000,
-    scanSymbolLimit = 20,
+    scanSymbolLimit = 100,
+    volumeCurrentWindow = 3,
+    volumeBaselineWindow = 20,
     demoMode = false,
   }) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
     this.timeoutMs = timeoutMs;
     this.scanSymbolLimit = scanSymbolLimit;
+    this.volumeCurrentWindow = Math.max(1, Math.min(10, toNumber(volumeCurrentWindow, 3)));
+    this.volumeBaselineWindow = Math.max(1, Math.min(300, toNumber(volumeBaselineWindow, 20)));
     this.demoMode = demoMode;
     this.tokenCache = null;
     this.tokenCacheExpiresAt = 0;
@@ -475,13 +544,14 @@ export class BinanceAlphaService {
       this.fetchAggTrades(symbol, 250),
     ]);
 
-    const latestKline = klines[klines.length - 1];
-    const baselineVolumes = klines.slice(0, -1).map((item) => item.volume);
-    const currentVolume = latestKline?.volume ?? ticker.volume;
-    const baselineVolumeAvg =
-      baselineVolumes.length > 0
-        ? baselineVolumes.reduce((sum, item) => sum + item, 0) / baselineVolumes.length
-        : 0;
+    const volumeSnapshot = deriveVolumeSnapshot(klines, {
+      currentWindow: this.volumeCurrentWindow,
+      baselineWindow: this.volumeBaselineWindow,
+    });
+
+    const currentVolume = volumeSnapshot.currentVolume;
+    const baselineVolumes = volumeSnapshot.baselineVolumes;
+    const baselineVolumeAvg = volumeSnapshot.baselineVolumeAvg;
 
     const priceChangePct =
       ticker.priceChangePct || calculatePriceMovePct(ticker.openPrice, ticker.lastPrice);
