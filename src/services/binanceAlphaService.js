@@ -71,29 +71,37 @@ function toTradeSymbol(tokenLike) {
 function selectScannableSymbols(tokens, limit) {
   const normalizedLimit = Math.max(1, Math.min(100, toNumber(limit, 20)));
   const seen = new Set();
-  const allSymbols = [];
+  const allTokens = [];
 
   for (const token of tokens) {
     if (!token || typeof token !== "object") {
       continue;
     }
 
-    const symbol = toTradeSymbol(token) || String(token.symbol || token.tokenId || token.id || "").trim();
-    if (!symbol || seen.has(symbol)) {
+    const tradeSymbol = toTradeSymbol(token) || String(token.symbol || token.tokenId || token.id || "").trim();
+    if (!tradeSymbol || seen.has(tradeSymbol)) {
       continue;
     }
 
-    seen.add(symbol);
-    allSymbols.push(symbol);
+    seen.add(tradeSymbol);
+    const displaySymbol = String(token.symbol || token.tokenSymbol || token.alphaId || tradeSymbol).trim();
+    allTokens.push({
+      symbol: displaySymbol || tradeSymbol,
+      tradeSymbol,
+      name: String(token.name || token.tokenName || displaySymbol || tradeSymbol),
+      tokenId: String(token.tokenId || token.id || displaySymbol || tradeSymbol),
+      alphaId: String(token.alphaId || ""),
+    });
   }
 
-  const usdtSymbols = allSymbols.filter((symbol) => /USDT$/i.test(symbol));
-  const selected = (usdtSymbols.length > 0 ? usdtSymbols : allSymbols).slice(0, normalizedLimit);
+  const usdtTokens = allTokens.filter((token) => /USDT$/i.test(token.tradeSymbol));
+  const selectedTokens = (usdtTokens.length > 0 ? usdtTokens : allTokens).slice(0, normalizedLimit);
 
   return {
-    symbols: selected,
-    selectionMode: usdtSymbols.length > 0 ? "usdt-priority" : "fallback-all",
-    tokenCount: allSymbols.length,
+    symbols: selectedTokens.map((token) => token.tradeSymbol),
+    selectedTokens,
+    selectionMode: usdtTokens.length > 0 ? "usdt-priority" : "fallback-all",
+    tokenCount: allTokens.length,
   };
 }
 
@@ -480,15 +488,19 @@ export class BinanceAlphaService {
     limit = this.scanSymbolLimit,
   } = {}) {
     const tokens = await this.fetchTokenList();
-    const { symbols, selectionMode, tokenCount } = selectScannableSymbols(
+    const { symbols, selectedTokens, selectionMode, tokenCount } = selectScannableSymbols(
       tokens,
       toNumber(limit, this.scanSymbolLimit),
     );
+    const tokenByTradeSymbol = new Map(
+      selectedTokens.map((token) => [token.tradeSymbol, token]),
+    );
 
     const scanned = await mapWithConcurrency(symbols, 4, async (symbol) => {
+      const tokenMeta = tokenByTradeSymbol.get(symbol);
       try {
         const overview = await this.fetchOverview(symbol, interval);
-        return { ok: true, symbol, overview };
+        return { ok: true, symbol, tokenMeta, overview };
       } catch (error) {
         return {
           ok: false,
@@ -500,7 +512,16 @@ export class BinanceAlphaService {
 
     const results = scanned
       .filter((item) => item.ok)
-      .map((item) => item.overview)
+      .map((item) => ({
+        ...item.overview,
+        symbol: item.overview.symbol || item.symbol,
+        tradeSymbol: item.tokenMeta?.tradeSymbol || item.overview.symbol || item.symbol,
+        displaySymbol: item.tokenMeta?.symbol || item.overview.symbol || item.symbol,
+        tokenName:
+          item.tokenMeta?.name || item.tokenMeta?.symbol || item.overview.symbol || item.symbol,
+        alphaId: item.tokenMeta?.alphaId || "",
+        tokenId: item.tokenMeta?.tokenId || "",
+      }))
       .sort((a, b) => b.signal.score - a.signal.score);
 
     const failures = scanned.filter((item) => !item.ok).map((item) => ({

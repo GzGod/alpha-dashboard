@@ -35,6 +35,15 @@ function formatTime(iso) {
   return d.toLocaleString();
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 async function getJson(url) {
   const res = await fetch(url);
   const body = await res.json();
@@ -85,10 +94,24 @@ function renderScanTable(scanResult) {
   const rows = scanResult?.results || [];
 
   for (const item of rows) {
+    const tokenName = item.tokenName || item.displaySymbol || item.symbol;
+    const displaySymbol = item.displaySymbol || "";
+    const tradeSymbol = item.tradeSymbol || item.symbol;
+    const secondaryParts = [];
+    if (displaySymbol && displaySymbol !== tokenName) {
+      secondaryParts.push(displaySymbol);
+    }
+    if (tradeSymbol) {
+      secondaryParts.push(tradeSymbol);
+    }
+
     const tr = document.createElement("tr");
     tr.className = "clickable";
     tr.innerHTML = `
-      <td>${item.symbol}</td>
+      <td class="token-cell">
+        <div class="token-title">${escapeHtml(tokenName)}</div>
+        <div class="token-sub">${escapeHtml(secondaryParts.join(" · "))}</div>
+      </td>
       <td>${item.signal.score}</td>
       <td>${fmtNumber(item.market.priceChangePct)}</td>
       <td>${fmtNumber(item.market.volumeSpikePct)}</td>
