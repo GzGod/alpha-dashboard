@@ -1,5 +1,5 @@
-const MAX_SCAN_LIMIT = 300;
-const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+const MAX_SCAN_LIMIT = 5000;
+const DEFAULT_REQUEST_TIMEOUT_MS = 180000;
 
 const els = {
   tokenInput: document.querySelector("#tokenInput"),
@@ -23,11 +23,29 @@ const els = {
   volumeList: document.querySelector("#volumeList"),
   marketTableBody: document.querySelector("#marketTableBody"),
   topNavLinks: Array.from(document.querySelectorAll(".top-nav a[data-section]")),
+  scanModal: document.querySelector("#scanModal"),
 };
 
 const state = {
   tokens: [],
   lastScan: null,
+};
+
+const CHAIN_SLUG_ALIASES = {
+  arbitrum: "arbitrum",
+  arb: "arbitrum",
+  base: "base",
+  bsc: "bsc",
+  "bnb smart chain": "bsc",
+  "binance smart chain": "bsc",
+  ethereum: "ethereum",
+  eth: "ethereum",
+  linea: "linea",
+  solana: "solana",
+  sonic: "sonic",
+  sui: "sui",
+  tron: "tron",
+  trx: "tron",
 };
 
 function toNumber(value, fallback = 0) {
@@ -79,15 +97,15 @@ function fmtCompact(value) {
 }
 
 function getTokenName(item) {
-  return item.tokenName || item.name || item.displaySymbol || item.symbol || "--";
+  return item?.tokenName || item?.name || item?.displaySymbol || item?.symbol || "--";
 }
 
 function getDisplaySymbol(item) {
-  return item.displaySymbol || item.symbol || "";
+  return item?.displaySymbol || item?.symbol || "";
 }
 
 function getTradeSymbol(item) {
-  return item.tradeSymbol || item.symbol || "";
+  return item?.tradeSymbol || item?.symbol || "";
 }
 
 function getDisplayLine(item) {
@@ -105,19 +123,42 @@ function getDisplayLine(item) {
   return parts.join(" · ");
 }
 
+function normalizeChainSlug(chainName) {
+  const normalized = String(chainName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  if (!normalized) {
+    return "";
+  }
+  if (CHAIN_SLUG_ALIASES[normalized]) {
+    return CHAIN_SLUG_ALIASES[normalized];
+  }
+  return normalized
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+/g, "")
+    .replace(/-+$/g, "");
+}
+
 function buildBinanceKlineUrl(item) {
   if (item?.klineUrl) {
     return item.klineUrl;
   }
 
-  const alphaId = String(item?.alphaId || "").trim();
-  if (alphaId) {
-    return `https://www.binance.com/zh-CN/alpha/${encodeURIComponent(alphaId)}`;
+  const chainSlug = normalizeChainSlug(item?.chainName);
+  const contractAddress = String(item?.contractAddress || "").trim();
+  if (chainSlug && contractAddress) {
+    return `https://www.binance.com/zh-CN/alpha/${encodeURIComponent(chainSlug)}/${encodeURIComponent(contractAddress)}?_from=markets`;
   }
 
   const symbol = getTradeSymbol(item);
   if (symbol) {
     return `https://www.binance.com/zh-CN/trade/${encodeURIComponent(symbol)}?type=spot`;
+  }
+
+  const alphaId = String(item?.alphaId || "").trim();
+  if (alphaId) {
+    return `https://www.binance.com/zh-CN/alpha/${encodeURIComponent(alphaId)}`;
   }
 
   return "https://www.binance.com/zh-CN/markets";
@@ -183,7 +224,7 @@ function initTopNav() {
   if (initialHash) {
     setActiveTopNav(initialHash);
   } else {
-    setActiveTopNav(els.topNavLinks[0].dataset.section || "");
+    setActiveTopNav(els.topNavLinks[0]?.dataset.section || "");
   }
 }
 
@@ -201,7 +242,11 @@ function buildRankingsClient(results, topN = 10) {
     .sort((a, b) => toNumber(b.signal?.score, -1) - toNumber(a.signal?.score, -1))
     .slice(0, cap);
   const volume = [...list]
-    .sort((a, b) => toNumber(b.ticker?.quoteVolume ?? b.ticker?.volume, -1) - toNumber(a.ticker?.quoteVolume ?? a.ticker?.volume, -1))
+    .sort(
+      (a, b) =>
+        toNumber(b.ticker?.quoteVolume ?? b.ticker?.volume, -1) -
+        toNumber(a.ticker?.quoteVolume ?? a.ticker?.volume, -1),
+    )
     .slice(0, cap);
 
   return { gainers, losers, anomaly, volume };
@@ -218,7 +263,14 @@ function resolveTokenQuery(input) {
   }
 
   const exact = state.tokens.find((token) => {
-    const candidates = [token.name, token.symbol, token.tradeSymbol, token.alphaId, `${token.name} ${token.symbol}`];
+    const candidates = [
+      token.name,
+      token.symbol,
+      token.tradeSymbol,
+      token.alphaId,
+      token.contractAddress,
+      `${token.name || ""} ${token.symbol || ""}`,
+    ];
     return candidates.map(normalizeQuery).includes(query);
   });
   if (exact) {
@@ -263,7 +315,7 @@ async function getJson(url, { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = {}) {
     res = await fetch(url, { signal: controller.signal });
   } catch (error) {
     if (error?.name === "AbortError") {
-      throw new Error("请求超时，请降低扫描数量后重试");
+      throw new Error("请求超时，全量扫描可能需要更久，请稍后重试");
     }
     throw error;
   } finally {
@@ -276,6 +328,13 @@ async function getJson(url, { timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS } = {}) {
     throw new Error(`${body.error || "Request failed"}${detail}`);
   }
   return body;
+}
+
+function setScanModalVisible(visible) {
+  if (!els.scanModal) {
+    return;
+  }
+  els.scanModal.hidden = !visible;
 }
 
 function renderSignal({ score, level, priceChangePct, volumeSpikePct, tradeCount, label }) {
@@ -365,9 +424,7 @@ function renderBoards(rankings) {
 }
 
 function buildLibraryRows(tokens, scanResults, interval) {
-  const scanMap = new Map(
-    (Array.isArray(scanResults) ? scanResults : []).map((item) => [getTradeSymbol(item), item]),
-  );
+  const scanMap = new Map((Array.isArray(scanResults) ? scanResults : []).map((item) => [getTradeSymbol(item), item]));
 
   return (Array.isArray(tokens) ? tokens : []).map((token) => {
     const tradeSymbol = getTradeSymbol(token);
@@ -383,6 +440,9 @@ function buildLibraryRows(tokens, scanResults, interval) {
       displaySymbol: token.symbol || tradeSymbol || "--",
       tokenName: token.name || token.symbol || tradeSymbol || "--",
       alphaId: token.alphaId || "",
+      chainName: token.chainName || "",
+      chainId: token.chainId || "",
+      contractAddress: token.contractAddress || "",
       klineUrl: token.klineUrl || buildBinanceKlineUrl(token),
       ticker: {
         quoteVolume: Number(token.volume24h),
@@ -441,6 +501,7 @@ function renderMarketTable(rows) {
 function showError(error) {
   const msg = error instanceof Error ? error.message : String(error);
   els.scanMeta.textContent = `错误: ${msg}`;
+  setScanModalVisible(false);
 }
 
 function decorateOverview(overview) {
@@ -452,14 +513,23 @@ function decorateOverview(overview) {
     tokenName: token?.name || overview.tokenName || overview.displaySymbol || tradeSymbol,
     displaySymbol: token?.symbol || overview.displaySymbol || tradeSymbol,
     alphaId: token?.alphaId || overview.alphaId || "",
-    klineUrl: token?.klineUrl || overview.klineUrl || buildBinanceKlineUrl({ alphaId: token?.alphaId, tradeSymbol }),
+    chainName: token?.chainName || overview.chainName || "",
+    chainId: token?.chainId || overview.chainId || "",
+    contractAddress: token?.contractAddress || overview.contractAddress || "",
+    klineUrl:
+      token?.klineUrl ||
+      overview.klineUrl ||
+      buildBinanceKlineUrl({
+        alphaId: token?.alphaId || overview.alphaId,
+        chainName: token?.chainName || overview.chainName,
+        contractAddress: token?.contractAddress || overview.contractAddress,
+        tradeSymbol,
+      }),
   };
 }
 
 async function loadOverviewBySymbol(symbol, interval) {
-  const data = await getJson(
-    `/api/overview?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`,
-  );
+  const data = await getJson(`/api/overview?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`);
   const view = decorateOverview(data);
 
   renderSignal({
@@ -480,9 +550,36 @@ async function loadFromInput() {
   await loadOverviewBySymbol(symbol, els.intervalSelect.value);
 }
 
+function resolveTokenLikeFromInput(rawInput) {
+  const input = String(rawInput || "").trim();
+  if (!input) {
+    throw new Error("请输入代币名称");
+  }
+
+  const token = resolveTokenQuery(input);
+  if (token) {
+    return token;
+  }
+
+  const normalizedSymbol = isTradeSymbolLike(input) ? input.toUpperCase() : resolveSymbolFromInput(input);
+  return {
+    symbol: normalizedSymbol,
+    tradeSymbol: normalizedSymbol,
+    tokenName: normalizedSymbol,
+    displaySymbol: normalizedSymbol,
+  };
+}
+
+function openTokenKlineFromInput() {
+  const token = resolveTokenLikeFromInput(els.tokenInput.value);
+  const url = buildBinanceKlineUrl(token);
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 async function loadTokens() {
   const result = await getJson("/api/tokens?limit=5000");
   state.tokens = Array.isArray(result.tokens) ? result.tokens : [];
+  els.scanLimitInput.value = String(Math.min(MAX_SCAN_LIMIT, state.tokens.length));
 
   const options = state.tokens
     .slice(0, 1000)
@@ -497,31 +594,38 @@ async function loadTokens() {
 
 async function runScan() {
   const interval = els.intervalSelect.value;
-  const requestedLimit = Math.max(5, Number(els.scanLimitInput.value) || 100);
-  const limit = Math.min(MAX_SCAN_LIMIT, requestedLimit);
-  if (requestedLimit > MAX_SCAN_LIMIT) {
-    els.scanLimitInput.value = String(limit);
-  }
+  const requestedLimit =
+    state.tokens.length > 0
+      ? Math.min(MAX_SCAN_LIMIT, state.tokens.length)
+      : Math.max(1, Math.min(MAX_SCAN_LIMIT, Number(els.scanLimitInput.value) || 100));
+  const limit = requestedLimit;
+  els.scanLimitInput.value = String(limit);
 
-  els.scanMeta.textContent = `扫描中...（请求 ${requestedLimit}，实际 ${limit}）`;
-  const result = await getJson(`/api/scan?interval=${encodeURIComponent(interval)}&limit=${limit}`);
+  els.scanMeta.textContent = `扫描中...（全量代币 ${limit}）`;
+  setScanModalVisible(true);
 
-  state.lastScan = result;
-  const rankings = result.rankings || buildRankingsClient(result.results || [], 10);
-  const libraryRows = buildLibraryRows(state.tokens, result.results || [], interval);
+  try {
+    const result = await getJson(`/api/scan?interval=${encodeURIComponent(interval)}&limit=${limit}`);
 
-  renderBoards(rankings);
-  renderMarketTable(libraryRows);
+    state.lastScan = result;
+    const rankings = result.rankings || buildRankingsClient(result.results || [], 10);
+    const libraryRows = buildLibraryRows(state.tokens, result.results || [], interval);
 
-  const requested = Number(result.requestedLimit ?? requestedLimit);
-  const effective = Number(result.effectiveLimit ?? limit);
-  els.scanMeta.textContent = `扫描 ${result.scannedCount} / 成功 ${result.successCount} / 失败 ${result.failureCount} / 代币库 ${state.tokens.length} / 请求 ${requested}→${effective}`;
-  els.timeChip.textContent = fmtTime(result.updatedAt);
+    renderBoards(rankings);
+    renderMarketTable(libraryRows);
 
-  const top = rankings.anomaly?.[0] || result.results?.[0];
-  if (top?.symbol) {
-    els.tokenInput.value = getTokenName(top);
-    await loadOverviewBySymbol(top.symbol, interval);
+    const requested = Number(result.requestedLimit ?? requestedLimit);
+    const effective = Number(result.effectiveLimit ?? limit);
+    els.scanMeta.textContent = `扫描 ${result.scannedCount} / 成功 ${result.successCount} / 失败 ${result.failureCount} / 代币库 ${state.tokens.length} / 请求 ${requested}→${effective}`;
+    els.timeChip.textContent = fmtTime(result.updatedAt);
+
+    const top = rankings.anomaly?.[0] || result.results?.[0];
+    if (top?.symbol) {
+      els.tokenInput.value = getTokenName(top);
+      await loadOverviewBySymbol(top.symbol, interval);
+    }
+  } finally {
+    setScanModalVisible(false);
   }
 }
 
@@ -530,7 +634,11 @@ els.scanBtn.addEventListener("click", () => {
 });
 
 els.loadBtn.addEventListener("click", () => {
-  loadFromInput().catch(showError);
+  try {
+    openTokenKlineFromInput();
+  } catch (error) {
+    showError(error);
+  }
 });
 
 els.tokenInput.addEventListener("keydown", (event) => {

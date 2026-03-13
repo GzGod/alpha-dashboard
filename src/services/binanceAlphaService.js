@@ -5,7 +5,30 @@ const TOKEN_LIST_PATH = "/bapi/defi/v1/public/wallet-direct/buw/wallet/cex/alpha
 const TICKER_PATH = "/bapi/defi/v1/public/alpha-trade/ticker";
 const AGG_TRADES_PATH = "/bapi/defi/v1/public/alpha-trade/agg-trades";
 const KLINES_PATH = "/bapi/defi/v1/public/alpha-trade/klines";
-const MAX_SCAN_SYMBOLS = 300;
+const MAX_SCAN_SYMBOLS = 5000;
+const CHAIN_SLUG_ALIASES = {
+  arbitrum: "arbitrum",
+  arb: "arbitrum",
+  base: "base",
+  bsc: "bsc",
+  "bnb smart chain": "bsc",
+  "binance smart chain": "bsc",
+  ethereum: "ethereum",
+  eth: "ethereum",
+  linea: "linea",
+  solana: "solana",
+  sonic: "sonic",
+  sui: "sui",
+  tron: "tron",
+  trx: "tron",
+};
+const CHAIN_ID_SLUG_ALIASES = {
+  "1": "ethereum",
+  "56": "bsc",
+  "8453": "base",
+  "42161": "arbitrum",
+  "59144": "linea",
+};
 const SUPPORTED_WINDOWS = {
   "15m": {
     key: "15m",
@@ -117,18 +140,43 @@ function toTradeSymbol(tokenLike) {
   return symbol;
 }
 
-function buildBinanceKlineUrl({ alphaId, tradeSymbol, symbol }) {
+function normalizeChainSlug({ chainName, chainId }) {
+  const normalizedName = String(chainName || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+  if (normalizedName) {
+    if (CHAIN_SLUG_ALIASES[normalizedName]) {
+      return CHAIN_SLUG_ALIASES[normalizedName];
+    }
+    return normalizedName
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+/g, "")
+      .replace(/-+$/g, "");
+  }
+
+  const normalizedId = String(chainId || "").trim();
+  return CHAIN_ID_SLUG_ALIASES[normalizedId] || "";
+}
+
+function buildBinanceKlineUrl({ chainName, chainId, contractAddress, alphaId, tradeSymbol, symbol }) {
+  const normalizedChain = normalizeChainSlug({ chainName, chainId });
+  const normalizedContractAddress = String(contractAddress || "").trim();
+  if (normalizedChain && normalizedContractAddress) {
+    return `https://www.binance.com/zh-CN/alpha/${encodeURIComponent(normalizedChain)}/${encodeURIComponent(normalizedContractAddress)}?_from=markets`;
+  }
+
+  const pair = String(tradeSymbol || symbol || "").trim();
+  if (pair) {
+    return `https://www.binance.com/zh-CN/trade/${encodeURIComponent(pair)}?type=spot`;
+  }
+
   const normalizedAlphaId = String(alphaId || "").trim();
   if (normalizedAlphaId) {
     return `https://www.binance.com/zh-CN/alpha/${encodeURIComponent(normalizedAlphaId)}`;
   }
 
-  const pair = String(tradeSymbol || symbol || "").trim();
-  if (!pair) {
-    return "https://www.binance.com/zh-CN/markets";
-  }
-
-  return `https://www.binance.com/zh-CN/trade/${encodeURIComponent(pair)}?type=spot`;
+  return "https://www.binance.com/zh-CN/markets";
 }
 
 function byNumberDesc(selector) {
@@ -300,12 +348,18 @@ function selectScannableSymbols(tokens, limit) {
       name: String(token.name || token.tokenName || displaySymbol || tradeSymbol),
       tokenId: String(token.tokenId || token.id || displaySymbol || tradeSymbol),
       alphaId: String(token.alphaId || ""),
+      chainName: String(token.chainName || ""),
+      chainId: String(token.chainId || ""),
+      contractAddress: String(token.contractAddress || token.address || ""),
       price: toNumber(token.price, NaN),
       percentChange24h: toNumber(token.percentChange24h, NaN),
       volume24h: toNumber(token.volume24h, NaN),
       count24h: toNumber(token.count24h, NaN),
       marketCap: toNumber(token.marketCap, NaN),
       klineUrl: buildBinanceKlineUrl({
+        chainName: token.chainName,
+        chainId: token.chainId,
+        contractAddress: token.contractAddress || token.address,
         alphaId: token.alphaId,
         tradeSymbol,
         symbol: displaySymbol || tradeSymbol,
@@ -313,13 +367,12 @@ function selectScannableSymbols(tokens, limit) {
     });
   }
 
-  const usdtTokens = allTokens.filter((token) => /USDT$/i.test(token.tradeSymbol));
-  const selectedTokens = (usdtTokens.length > 0 ? usdtTokens : allTokens).slice(0, normalizedLimit);
+  const selectedTokens = allTokens.slice(0, normalizedLimit);
 
   return {
     symbols: selectedTokens.map((token) => token.tradeSymbol),
     selectedTokens,
-    selectionMode: usdtTokens.length > 0 ? "usdt-priority" : "fallback-all",
+    selectionMode: "all",
     tokenCount: allTokens.length,
   };
 }
@@ -348,12 +401,18 @@ function normalizeTokenList(data) {
       name: String(row.name || row.tokenName || symbol),
       tokenId: String(row.tokenId || row.id || symbol),
       alphaId: String(row.alphaId || ""),
+      chainName: String(row.chainName || ""),
+      chainId: String(row.chainId || ""),
+      contractAddress: String(row.contractAddress || row.address || ""),
       price: toNumber(row.price, NaN),
       percentChange24h: toNumber(row.percentChange24h, NaN),
       volume24h: toNumber(row.volume24h, NaN),
       count24h: toNumber(row.count24h, NaN),
       marketCap: toNumber(row.marketCap, NaN),
       klineUrl: buildBinanceKlineUrl({
+        chainName: row.chainName,
+        chainId: row.chainId,
+        contractAddress: row.contractAddress || row.address,
         alphaId: row.alphaId,
         tradeSymbol,
         symbol,
@@ -828,6 +887,9 @@ export class BinanceAlphaService {
         tokenName:
           item.tokenMeta?.name || item.tokenMeta?.symbol || item.overview.symbol || item.symbol,
         alphaId: item.tokenMeta?.alphaId || "",
+        chainName: item.tokenMeta?.chainName || "",
+        chainId: item.tokenMeta?.chainId || "",
+        contractAddress: item.tokenMeta?.contractAddress || "",
         tokenId: item.tokenMeta?.tokenId || "",
         percentChange24h: item.tokenMeta?.percentChange24h,
         volume24h: item.tokenMeta?.volume24h,
@@ -835,6 +897,9 @@ export class BinanceAlphaService {
         klineUrl:
           item.tokenMeta?.klineUrl ||
           buildBinanceKlineUrl({
+            chainName: item.tokenMeta?.chainName,
+            chainId: item.tokenMeta?.chainId,
+            contractAddress: item.tokenMeta?.contractAddress,
             alphaId: item.tokenMeta?.alphaId,
             tradeSymbol: item.tokenMeta?.tradeSymbol || item.overview.symbol || item.symbol,
             symbol: item.tokenMeta?.symbol || item.overview.symbol || item.symbol,

@@ -54,7 +54,7 @@
         </label>
         <label>
           榜单扫描数量
-          <input id="scanLimitInput" type="number" min="5" max="300" value="100" />
+          <input id="scanLimitInput" type="number" min="1" max="5000" value="0" readonly />
         </label>
         <button id="scanBtn">刷新扫描</button>
         <button id="loadBtn" class="secondary">加载代币详情</button>
@@ -62,22 +62,46 @@
 
       <section class="stats-grid">
         <article class="panel stat">
-          <p>价格偏移</p>
+          <p class="stat-title">
+            价格偏移
+            <span class="info-tip" tabindex="0" aria-label="价格偏移说明">
+              i
+              <span class="tip-pop">在所选时间窗口内，收盘价相对窗口起点价格的变化百分比。</span>
+            </span>
+          </p>
           <h2 id="priceMoveStat">--%</h2>
           <small id="symbolMeta">--</small>
         </article>
         <article class="panel stat">
-          <p>成交量异动</p>
+          <p class="stat-title">
+            成交量异动
+            <span class="info-tip" tabindex="0" aria-label="成交量异动说明">
+              i
+              <span class="tip-pop">当前窗口成交量相对历史基线均值的偏离比例；0%附近表示接近常态。</span>
+            </span>
+          </p>
           <h2 id="volumeSpikeStat">--%</h2>
           <small>当前 vs 历史平均</small>
         </article>
         <article class="panel stat">
-          <p>近段成交笔数</p>
+          <p class="stat-title">
+            近段成交笔数
+            <span class="info-tip" tabindex="0" aria-label="成交笔数说明">
+              i
+              <span class="tip-pop">所选窗口内聚合成交笔数（Agg Trades），用于衡量交易活跃度。</span>
+            </span>
+          </p>
           <h2 id="tradeCountStat">--</h2>
           <small>Agg Trades</small>
         </article>
         <article class="panel stat">
-          <p>异动评分</p>
+          <p class="stat-title">
+            异动评分
+            <span class="info-tip" tabindex="0" aria-label="异动评分说明">
+              i
+              <span class="tip-pop">综合价格偏移、成交量异动和成交笔数计算，分值越高表示异动越强。</span>
+            </span>
+          </p>
           <h2 id="scoreStat">--</h2>
           <span id="levelTag" class="level level-low">LOW</span>
         </article>
@@ -135,6 +159,14 @@
         </div>
       </section>
     </main>
+
+    <div id="scanModal" class="scan-modal" hidden>
+      <div class="scan-modal-card" role="status" aria-live="polite">
+        <div class="scan-spinner" aria-hidden="true"></div>
+        <p>扫描中，请耐心等待...</p>
+        <small>全量代币扫描会比较慢，请勿重复点击。</small>
+      </div>
+    </div>
 
     <script type="module" src="/app.js"></script>
   </body>

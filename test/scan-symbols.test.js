@@ -33,7 +33,7 @@ test("scanSymbols should still scan when token symbols do not contain USDT", asy
   assert.equal(result.failureCount, 0);
 });
 
-test("scanSymbols should prioritize USDT symbols when available", async () => {
+test("scanSymbols should keep original token order when applying limit", async () => {
   const service = createService();
   service.fetchTokenList = async () => [
     { symbol: "ALPHA_175" },
@@ -46,7 +46,7 @@ test("scanSymbols should prioritize USDT symbols when available", async () => {
   assert.equal(result.scannedCount, 2);
   assert.deepEqual(
     result.results.map((item) => item.symbol).sort(),
-    ["BETA_402USDT", "GAMMA_008USDT"],
+    ["ALPHA_175", "BETA_402USDT"],
   );
 });
 
@@ -87,6 +87,8 @@ test("scanSymbols should include token display metadata in results", async () =>
       symbol: "SN3",
       name: "Nebula3",
       alphaId: "ALPHA_798",
+      chainName: "BSC",
+      contractAddress: "0xf758cfb1467a227516d73d87da7d36e7cb6f71f1",
     },
   ];
 
@@ -97,9 +99,15 @@ test("scanSymbols should include token display metadata in results", async () =>
   assert.equal(first.displaySymbol, "SN3");
   assert.equal(first.tokenName, "Nebula3");
   assert.equal(first.alphaId, "ALPHA_798");
+  assert.equal(first.chainName, "BSC");
+  assert.equal(first.contractAddress, "0xf758cfb1467a227516d73d87da7d36e7cb6f71f1");
+  assert.equal(
+    first.klineUrl,
+    "https://www.binance.com/zh-CN/alpha/bsc/0xf758cfb1467a227516d73d87da7d36e7cb6f71f1?_from=markets",
+  );
 });
 
-test("scanSymbols should cap single request size to avoid long blocking scans", async () => {
+test("scanSymbols should cap single request size at configured maximum", async () => {
   const service = new BinanceAlphaService({
     baseUrl: "https://www.binance.com",
     demoMode: false,
@@ -120,6 +128,6 @@ test("scanSymbols should cap single request size to avoid long blocking scans", 
   const result = await service.scanSymbols({ interval: "1h", limit: 9999 });
 
   assert.equal(result.requestedLimit, 9999);
-  assert.equal(result.effectiveLimit, 300);
-  assert.equal(result.scannedCount, 300);
+  assert.equal(result.effectiveLimit, 5000);
+  assert.equal(result.scannedCount, 600);
 });
